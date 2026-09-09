@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" class="collapsed">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -59,36 +59,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
 
-    html {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: transparent !important;
-    }
-
-    /* In collapsed mode, html is strictly clamped to handle dimensions */
-    html.collapsed {
-      width: var(--handle-width) !important;
-      height: var(--handle-total-height) !important;
-      overflow: hidden !important;
-      background: transparent !important;
-    }
-
-    body {
+    html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
       background: var(--bg-primary);
       color: var(--text-main);
       transition: color 0.2s;
-    }
-
-    /* In collapsed state, clamp body strictly to handle size with no background */
-    body.collapsed {
-      width: var(--handle-width) !important;
-      height: var(--handle-total-height) !important;
-      background: transparent !important;
-      overflow: hidden !important;
     }
 
     body.collapsed #sidebar {
@@ -115,7 +92,6 @@
       margin: 0;
       align-items: stretch;
       overflow: hidden;
-      background: transparent !important;
     }
 
     /* 1. Main Square Tab (36x36 px) */
@@ -700,7 +676,7 @@
 </head>
 <body class="collapsed theme-dark">
 
-  <!-- Collapsed Wrapper: Exact Height (58px) with no excess background -->
+  <!-- Collapsed Wrapper: Exact Height (58px) -->
   <div id="collapsed-wrapper">
     <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1116,6 +1092,7 @@
       }
     }
 
+    // Modal Editor Logic (only opened via explicit button)
     function openBodyEditor(task) {
       editingTask = task;
       modalTaskTitleInput.value = task.title;

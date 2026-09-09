@@ -21,8 +21,6 @@ CONFIG_DIR = Path.home() / ".quicktask"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULT_TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
 
-# Exact physical height of the two collapsed handles:
-# 36px (square tab) + 2px (gap) + 20px (drag grip tab) = 58px
 DEFAULT_CONFIG = {
     "sidebar_width": 380,
     "handle_width": 36,
@@ -56,38 +54,6 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
         target = directory / f"{base_name}_{counter}.md"
         counter += 1
     return target
-
-
-def apply_native_winforms_fixes(width: int, height: int, x: int, y: int):
-    """
-    On Windows (WinForms backend), Form.MinimumSize defaults to (200, 100),
-    which clamps any resize below 200x100.
-    We reset Form.MinimumSize to (0, 0), set Form.Size, and configure WebView2
-    DefaultBackgroundColor = Color.Transparent to eliminate background panels.
-    """
-    if sys.platform == "win32" and CURRENT_WINDOW and hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
-        try:
-            form = CURRENT_WINDOW.native
-            # System.Drawing.Size
-            from System.Drawing import Size, Point, Color  # type: ignore
-            form.MinimumSize = Size(0, 0)
-            form.Location = Point(int(x), int(y))
-            form.Size = Size(int(width), int(height))
-            form.ClientSize = Size(int(width), int(height))
-
-            # Configure WebView2 background transparency
-            if hasattr(form, "ActiveControl") and form.ActiveControl:
-                webview_ctrl = form.ActiveControl
-                if hasattr(webview_ctrl, "DefaultBackgroundColor"):
-                    webview_ctrl.DefaultBackgroundColor = Color.Transparent
-            return
-        except Exception:
-            pass
-
-    # Standard fallback
-    if CURRENT_WINDOW:
-        CURRENT_WINDOW.resize(width, height)
-        CURRENT_WINDOW.move(x, y)
 
 
 class TaskFileHandler(FileSystemEventHandler):
@@ -154,7 +120,6 @@ class QuickTaskAPI:
                     data = json.load(f)
                     cfg = DEFAULT_CONFIG.copy()
                     cfg.update(data)
-                    cfg["handle_total_height"] = 58
                     return cfg
             except Exception as e:
                 print(f"Error loading config: {e}", file=sys.stderr)
@@ -220,9 +185,10 @@ class QuickTaskAPI:
             
         x = SCREEN_WIDTH - width
         
-        CURRENT_WINDOW.evaluate_js("document.documentElement.classList.remove('collapsed'); document.documentElement.classList.add('expanded'); document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
-        apply_native_winforms_fixes(width, target_height, x, y)
+        CURRENT_WINDOW.resize(width, target_height)
+        CURRENT_WINDOW.move(x, y)
         self.is_expanded = True
+        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
 
     def collapse(self, force: bool = False):
         if not CURRENT_WINDOW:
@@ -231,13 +197,14 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        total_h = 58  # Exact height 58px
+        total_h = int(self.config.get("handle_total_height", 58))
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
-        CURRENT_WINDOW.evaluate_js("document.documentElement.classList.remove('expanded'); document.documentElement.classList.add('collapsed'); document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
-        apply_native_winforms_fixes(h_width, total_h, x, y)
+        CURRENT_WINDOW.resize(h_width, total_h)
+        CURRENT_WINDOW.move(x, y)
         self.is_expanded = False
+        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
 
     def toggle_pin(self) -> bool:
         new_state = not self.config.get("pinned", False)
@@ -294,13 +261,13 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        total_h = 58
+        total_h = int(self.config.get("handle_total_height", 58))
         new_y = max(0, min(SCREEN_HEIGHT - total_h, current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
         if not self.is_expanded and CURRENT_WINDOW:
             x = SCREEN_WIDTH - int(self.config.get("handle_width", 36))
-            apply_native_winforms_fixes(int(self.config.get("handle_width", 36)), total_h, x, new_y)
+            CURRENT_WINDOW.move(x, new_y)
         return new_y
 
     def save_tasks_order(self, order: List[str]) -> bool:
@@ -551,8 +518,8 @@ def main():
     api = QuickTaskAPI()
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
-    h_width = 36
-    total_h = 58  # Exact height of collapsed buttons
+    h_width = int(api.config.get("handle_width", 36))
+    total_h = int(api.config.get("handle_total_height", 58))
 
     CURRENT_WINDOW = webview.create_window(
         title="QuickTask",
@@ -578,8 +545,6 @@ def main():
                 SCREEN_HEIGHT = primary.height
         except Exception:
             pass
-        # Clear Form.MinimumSize and configure WebView2 transparency
-        apply_native_winforms_fixes(h_width, total_h, SCREEN_WIDTH - h_width, initial_y)
         api.start_watcher()
         api.register_hotkey()
 
