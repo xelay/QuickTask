@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import time
+import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -55,6 +56,35 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
         target = directory / f"{base_name}_{counter}.md"
         counter += 1
     return target
+
+
+def hide_from_taskbar():
+    """
+    Hides the app icon completely from the Windows Taskbar and Alt+Tab list.
+    """
+    if sys.platform != "win32" or not CURRENT_WINDOW:
+        return
+
+    # Method 1: WinForms Form.ShowInTaskbar = False
+    try:
+        if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
+            CURRENT_WINDOW.native.ShowInTaskbar = False
+            return
+    except Exception:
+        pass
+
+    # Method 2: Win32 WS_EX_TOOLWINDOW style
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+        if hwnd:
+            GWL_EXSTYLE = -20
+            WS_EX_TOOLWINDOW = 0x00000080
+            WS_EX_APPWINDOW = 0x00040000
+            current_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            new_style = (current_style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+    except Exception:
+        pass
 
 
 class TaskFileHandler(FileSystemEventHandler):
@@ -121,6 +151,7 @@ class QuickTaskAPI:
                     data = json.load(f)
                     cfg = DEFAULT_CONFIG.copy()
                     cfg.update(data)
+                    cfg["handle_total_height"] = 100
                     return cfg
             except Exception as e:
                 print(f"Error loading config: {e}", file=sys.stderr)
@@ -198,7 +229,7 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        total_h = int(self.config.get("handle_total_height", 100))
+        total_h = 100
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
@@ -262,7 +293,7 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        total_h = int(self.config.get("handle_total_height", 100))
+        total_h = 100
         new_y = max(0, min(SCREEN_HEIGHT - total_h, current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
@@ -546,6 +577,7 @@ def main():
                 SCREEN_HEIGHT = primary.height
         except Exception:
             pass
+        hide_from_taskbar()
         api.start_watcher()
         api.register_hotkey()
 
