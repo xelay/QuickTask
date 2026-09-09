@@ -58,31 +58,50 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
     return target
 
 
-def hide_from_taskbar():
+def remove_taskbar_icon():
     """
-    Hides the app icon completely from the Windows Taskbar and Alt+Tab list.
+    Guaranteed removal of window from the Windows taskbar:
+    1. WinForms ShowInTaskbar = False executed strictly on the UI thread via Invoke.
+    2. Win32 WS_EX_TOOLWINDOW extended style with SetWindowPos SWP_FRAMECHANGED.
     """
     if sys.platform != "win32" or not CURRENT_WINDOW:
         return
 
-    # Method 1: WinForms Form.ShowInTaskbar = False
+    # 1. Native WinForms invocation on UI thread
     try:
         if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
-            CURRENT_WINDOW.native.ShowInTaskbar = False
-            return
+            form = CURRENT_WINDOW.native
+            from System import Action  # type: ignore
+            def apply_form_taskbar():
+                form.ShowInTaskbar = False
+            form.Invoke(Action(apply_form_taskbar))
     except Exception:
         pass
 
-    # Method 2: Win32 WS_EX_TOOLWINDOW style
+    # 2. Native Win32 WS_EX_TOOLWINDOW modification
     try:
-        hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+        hwnd = None
+        if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
+            h = getattr(CURRENT_WINDOW.native, "Handle", None)
+            if h and hasattr(h, "ToInt32"):
+                hwnd = h.ToInt32()
+        if not hwnd:
+            hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+
         if hwnd:
             GWL_EXSTYLE = -20
             WS_EX_TOOLWINDOW = 0x00000080
             WS_EX_APPWINDOW = 0x00040000
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOZORDER = 0x0004
+            SWP_FRAMECHANGED = 0x0020
+
             current_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
             new_style = (current_style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
             ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+            ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 
+                                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED)
     except Exception:
         pass
 
@@ -151,7 +170,6 @@ class QuickTaskAPI:
                     data = json.load(f)
                     cfg = DEFAULT_CONFIG.copy()
                     cfg.update(data)
-                    cfg["handle_total_height"] = 100
                     return cfg
             except Exception as e:
                 print(f"Error loading config: {e}", file=sys.stderr)
@@ -229,7 +247,7 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        total_h = 100
+        total_h = int(self.config.get("handle_total_height", 100))
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
@@ -293,7 +311,7 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        total_h = 100
+        total_h = int(self.config.get("handle_total_height", 100))
         new_y = max(0, min(SCREEN_HEIGHT - total_h, current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
@@ -577,7 +595,7 @@ def main():
                 SCREEN_HEIGHT = primary.height
         except Exception:
             pass
-        hide_from_taskbar()
+        remove_taskbar_icon()
         api.start_watcher()
         api.register_hotkey()
 
