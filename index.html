@@ -66,8 +66,13 @@
       transition: color 0.2s;
     }
 
+    /* In collapsed state, align content to the right edge of the window */
     body.collapsed {
       background: var(--bg-secondary);
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+      align-items: stretch;
     }
 
     body.collapsed #sidebar {
@@ -83,12 +88,15 @@
       display: flex;
     }
 
-    /* Monolithic 100px Handle (36x100 px) */
+    /* Pinned strictly to 36px width at the right edge of viewport */
     #collapsed-wrapper {
       display: flex;
       flex-direction: column;
-      width: 100%;
+      width: var(--handle-width) !important;
+      min-width: var(--handle-width) !important;
+      max-width: var(--handle-width) !important;
       height: 100%;
+      margin-left: auto;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
@@ -682,7 +690,7 @@
 </head>
 <body class="collapsed theme-dark">
 
-  <!-- Monolithic 100px Collapsed Handle (36x100 px) -->
+  <!-- Monolithic 100px Collapsed Handle (36x100 px pinned to right edge) -->
   <div id="collapsed-wrapper">
     <!-- Top Action / Open Area (hover or click expands) -->
     <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">
