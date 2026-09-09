@@ -3,7 +3,9 @@ import re
 import sys
 import json
 import time
+import threading
 import ctypes
+from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -22,7 +24,6 @@ CONFIG_DIR = Path.home() / ".quicktask"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 DEFAULT_TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
 
-# Natural 100px physical height matching Windows SystemInformation.MinimumWindowSize
 DEFAULT_CONFIG = {
     "sidebar_width": 380,
     "handle_width": 36,
@@ -60,35 +61,30 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
 
 def remove_taskbar_icon():
     """
-    Guaranteed removal of window from the Windows taskbar:
-    1. WinForms ShowInTaskbar = False executed strictly on the UI thread via Invoke.
-    2. Win32 WS_EX_TOOLWINDOW extended style with SetWindowPos SWP_FRAMECHANGED.
+    Guaranteed removal of frameless window from Windows taskbar:
+    Enumerate visible windows belonging to current process (PID)
+    and set WS_EX_TOOLWINDOW with SWP_FRAMECHANGED.
     """
-    if sys.platform != "win32" or not CURRENT_WINDOW:
+    if sys.platform != "win32":
         return
 
-    # 1. Native WinForms invocation on UI thread
-    try:
-        if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
-            form = CURRENT_WINDOW.native
-            from System import Action  # type: ignore
-            def apply_form_taskbar():
-                form.ShowInTaskbar = False
-            form.Invoke(Action(apply_form_taskbar))
-    except Exception:
-        pass
+    def _worker():
+        time.sleep(0.3)
+        try:
+            current_pid = os.getpid()
+            found_hwnds = []
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
-    # 2. Native Win32 WS_EX_TOOLWINDOW modification
-    try:
-        hwnd = None
-        if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
-            h = getattr(CURRENT_WINDOW.native, "Handle", None)
-            if h and hasattr(h, "ToInt32"):
-                hwnd = h.ToInt32()
-        if not hwnd:
-            hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+            def enum_cb(hwnd, lparam):
+                if ctypes.windll.user32.IsWindowVisible(hwnd):
+                    pid = wintypes.DWORD()
+                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    if pid.value == current_pid:
+                        found_hwnds.append(hwnd)
+                return True
 
-        if hwnd:
+            ctypes.windll.user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+
             GWL_EXSTYLE = -20
             WS_EX_TOOLWINDOW = 0x00000080
             WS_EX_APPWINDOW = 0x00040000
@@ -97,13 +93,19 @@ def remove_taskbar_icon():
             SWP_NOZORDER = 0x0004
             SWP_FRAMECHANGED = 0x0020
 
-            current_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            new_style = (current_style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
-            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
-            ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 
-                                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED)
-    except Exception:
-        pass
+            for hwnd in found_hwnds:
+                style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                new_style = (style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd, 0, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+                )
+        except Exception as e:
+            print(f"Error hiding taskbar icon: {e}", file=sys.stderr)
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
 
 
 class TaskFileHandler(FileSystemEventHandler):
