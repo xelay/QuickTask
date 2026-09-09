@@ -66,13 +66,11 @@
       transition: color 0.2s;
     }
 
-    /* In collapsed state, align content to the right edge of the window */
     body.collapsed {
       background: var(--bg-secondary);
-      display: flex;
-      flex-direction: row;
-      justify-content: flex-end;
-      align-items: stretch;
+      display: block;
+      padding: 0;
+      margin: 0;
     }
 
     body.collapsed #sidebar {
@@ -88,15 +86,17 @@
       display: flex;
     }
 
-    /* Pinned strictly to 36px width at the right edge of viewport */
+    /* Placed strictly at the left edge (x=0) of the window viewport */
     #collapsed-wrapper {
       display: flex;
       flex-direction: column;
       width: var(--handle-width) !important;
       min-width: var(--handle-width) !important;
       max-width: var(--handle-width) !important;
-      height: 100%;
-      margin-left: auto;
+      height: var(--handle-total-height) !important;
+      position: absolute;
+      top: 0;
+      left: 0;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
@@ -110,7 +110,7 @@
     /* Top Section: Open / Action Tab */
     #collapsed-tab {
       width: 100%;
-      flex: 1 1 56px;
+      height: 58px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -142,7 +142,7 @@
     /* Bottom Section: Dedicated Vertical Drag Handle */
     #collapsed-drag-tab {
       width: 100%;
-      flex: 0 0 38px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -690,7 +690,7 @@
 </head>
 <body class="collapsed theme-dark">
 
-  <!-- Monolithic 100px Collapsed Handle (36x100 px pinned to right edge) -->
+  <!-- Monolithic 100px Collapsed Handle (36x100 px at x=0 of window) -->
   <div id="collapsed-wrapper">
     <!-- Top Action / Open Area (hover or click expands) -->
     <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">

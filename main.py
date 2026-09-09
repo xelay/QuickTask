@@ -121,7 +121,6 @@ class QuickTaskAPI:
                     data = json.load(f)
                     cfg = DEFAULT_CONFIG.copy()
                     cfg.update(data)
-                    cfg["handle_total_height"] = 100
                     return cfg
             except Exception as e:
                 print(f"Error loading config: {e}", file=sys.stderr)
@@ -199,7 +198,7 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        total_h = 100
+        total_h = int(self.config.get("handle_total_height", 100))
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
@@ -263,7 +262,7 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        total_h = 100
+        total_h = int(self.config.get("handle_total_height", 100))
         new_y = max(0, min(SCREEN_HEIGHT - total_h, current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
@@ -521,7 +520,7 @@ def main():
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
     h_width = 36
-    total_h = 100  # Matches natural Windows MinimumWindowSize (100px)
+    total_h = int(api.config.get("handle_total_height", 100))
 
     CURRENT_WINDOW = webview.create_window(
         title="QuickTask",
