@@ -67,6 +67,9 @@ class TaskFileHandler(FileSystemEventHandler):
             return
         src_path = getattr(event, "src_path", "")
         dest_path = getattr(event, "dest_path", "")
+        # Ignore index.json updates to prevent feedback loops
+        if "index.json" in src_path or "index.json" in dest_path:
+            return
         if (src_path and src_path.endswith(".md")) or (dest_path and dest_path.endswith(".md")):
             now = time.time()
             if now - self._last_event_time > 0.3:
@@ -80,7 +83,35 @@ class QuickTaskAPI:
         self.config = self.load_config()
         self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
+        self.index_file = self.tasks_dir / "index.json"
+        self._ensure_index_file()
         self.observer: Optional[Observer] = None
+
+    def _ensure_index_file(self):
+        try:
+            if not self.index_file.exists():
+                with open(self.index_file, "w", encoding="utf-8") as f:
+                    json.dump([], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error ensuring index.json: {e}", file=sys.stderr)
+
+    def _load_index_order(self) -> List[str]:
+        if self.index_file.exists():
+            try:
+                with open(self.index_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except Exception as e:
+                print(f"Error loading index.json: {e}", file=sys.stderr)
+        return []
+
+    def _save_index_order(self, order: List[str]):
+        try:
+            with open(self.index_file, "w", encoding="utf-8") as f:
+                json.dump(order, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving index.json: {e}", file=sys.stderr)
 
     def load_config(self) -> Dict[str, Any]:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -111,6 +142,8 @@ class QuickTaskAPI:
             except Exception:
                 pass
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
+        self.index_file = self.tasks_dir / "index.json"
+        self._ensure_index_file()
         event_handler = TaskFileHandler(self)
         self.observer = Observer()
         self.observer.schedule(event_handler, str(self.tasks_dir), recursive=False)
@@ -238,10 +271,14 @@ class QuickTaskAPI:
             CURRENT_WINDOW.move(x, new_y)
         return new_y
 
+    def save_tasks_order(self, order: List[str]) -> bool:
+        self._save_index_order(order)
+        return True
+
     def get_tasks(self) -> List[Dict[str, Any]]:
-        tasks = []
+        task_dict = {}
         if not self.tasks_dir.exists():
-            return tasks
+            return []
 
         for file_path in self.tasks_dir.glob("*.md"):
             try:
@@ -261,24 +298,42 @@ class QuickTaskAPI:
                         body_lines.append(line)
 
                 body = "\n".join(body_lines).strip()
-                tasks.append({
+                task_dict[file_path.name] = {
                     "id": file_path.name,
                     "title": title,
                     "body": body,
                     "done": bool(metadata.get("done", False)),
                     "archived": bool(metadata.get("archived", False)),
+                    "urgent": bool(metadata.get("urgent", False)),
                     "created_at": str(metadata.get("created_at", "")),
                     "updated_at": str(metadata.get("updated_at", "")),
-                })
+                    "metadata": {k: str(v) for k, v in metadata.items()}
+                }
             except Exception as e:
                 print(f"Error parsing task {file_path}: {e}", file=sys.stderr)
 
-        tasks.sort(key=lambda t: t.get("updated_at") or t.get("created_at") or "", reverse=True)
-        return tasks
+        order = self._load_index_order()
+        sorted_tasks = []
+        seen = set()
 
-    def create_task(self, title: str = "Новая задача", body: str = "") -> Optional[Dict[str, Any]]:
+        for file_name in order:
+            if file_name in task_dict:
+                sorted_tasks.append(task_dict[file_name])
+                seen.add(file_name)
+
+        remaining = [t for fid, t in task_dict.items() if fid not in seen]
+        remaining.sort(key=lambda t: t.get("updated_at") or t.get("created_at") or "", reverse=True)
+        final_list = remaining + sorted_tasks
+
+        new_order = [t["id"] for t in final_list]
+        if new_order != order:
+            self._save_index_order(new_order)
+
+        return final_list
+
+    def create_task(self, title: str = "New", body: str = "") -> Optional[Dict[str, Any]]:
         now_str = datetime.now().isoformat(timespec="seconds")
-        clean_title = title.strip() or "Новая задача"
+        clean_title = title.strip() or "New"
         base_name = sanitize_filename(clean_title)
         file_path = get_unique_filename(self.tasks_dir, base_name)
 
@@ -286,6 +341,7 @@ class QuickTaskAPI:
             content=f"# {clean_title}\n\n{body}".strip(),
             done=False,
             archived=False,
+            urgent=False,
             created_at=now_str,
             updated_at=now_str
         )
@@ -293,20 +349,33 @@ class QuickTaskAPI:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 frontmatter.dump(post, f)
+            
+            order = self._load_index_order()
+            order = [file_path.name] + [fid for fid in order if fid != file_path.name]
+            self._save_index_order(order)
+
             return {
                 "id": file_path.name,
                 "title": clean_title,
                 "body": body,
                 "done": False,
                 "archived": False,
+                "urgent": False,
                 "created_at": now_str,
-                "updated_at": now_str
+                "updated_at": now_str,
+                "metadata": {
+                    "done": "False",
+                    "archived": "False",
+                    "urgent": "False",
+                    "created_at": now_str,
+                    "updated_at": now_str
+                }
             }
         except Exception as e:
             print(f"Error creating task: {e}", file=sys.stderr)
             return None
 
-    def update_task_status(self, task_id: str, done: Optional[bool] = None, archived: Optional[bool] = None) -> bool:
+    def update_task_status(self, task_id: str, done: Optional[bool] = None, archived: Optional[bool] = None, urgent: Optional[bool] = None) -> bool:
         file_path = self.tasks_dir / task_id
         if not file_path.exists():
             return False
@@ -317,6 +386,8 @@ class QuickTaskAPI:
                 post.metadata["done"] = bool(done)
             if archived is not None:
                 post.metadata["archived"] = bool(archived)
+            if urgent is not None:
+                post.metadata["urgent"] = bool(urgent)
             post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
 
             with open(file_path, "w", encoding="utf-8") as f:
@@ -330,7 +401,7 @@ class QuickTaskAPI:
         file_path = self.tasks_dir / task_id
         if not file_path.exists():
             return None
-        clean_title = new_title.strip() or "Без названия"
+        clean_title = new_title.strip() or "Untitled"
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
@@ -353,6 +424,10 @@ class QuickTaskAPI:
                 with open(file_path, "w", encoding="utf-8") as f:
                     frontmatter.dump(post, f)
                 file_path.rename(new_file_path)
+
+                order = self._load_index_order()
+                order = [new_file_path.name if x == file_path.name else x for x in order]
+                self._save_index_order(order)
             else:
                 with open(file_path, "w", encoding="utf-8") as f:
                     frontmatter.dump(post, f)
@@ -360,6 +435,44 @@ class QuickTaskAPI:
             return new_file_path.name
         except Exception as e:
             print(f"Error updating title for {task_id}: {e}", file=sys.stderr)
+            return None
+
+    def update_task_full(self, task_id: str, new_title: str, new_body: str) -> Optional[Dict[str, Any]]:
+        file_path = self.tasks_dir / task_id
+        if not file_path.exists():
+            return None
+        clean_title = new_title.strip() or "Untitled"
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
+            now_str = datetime.now().isoformat(timespec="seconds")
+            post.metadata["updated_at"] = now_str
+            post.content = f"# {clean_title}\n\n{new_body.strip()}"
+
+            base_name = sanitize_filename(clean_title)
+            new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
+
+            if new_file_path.resolve() != file_path.resolve():
+                with open(file_path, "w", encoding="utf-8") as f:
+                    frontmatter.dump(post, f)
+                file_path.rename(new_file_path)
+
+                order = self._load_index_order()
+                order = [new_file_path.name if x == file_path.name else x for x in order]
+                self._save_index_order(order)
+            else:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    frontmatter.dump(post, f)
+
+            return {
+                "id": new_file_path.name,
+                "title": clean_title,
+                "body": new_body.strip(),
+                "updated_at": now_str,
+                "metadata": {k: str(v) for k, v in post.metadata.items()}
+            }
+        except Exception as e:
+            print(f"Error updating task full for {task_id}: {e}", file=sys.stderr)
             return None
 
     def update_task_body(self, task_id: str, new_body: str) -> bool:
@@ -390,6 +503,10 @@ class QuickTaskAPI:
         if file_path.exists():
             try:
                 file_path.unlink()
+                order = self._load_index_order()
+                if task_id in order:
+                    order.remove(task_id)
+                    self._save_index_order(order)
                 return True
             except Exception as e:
                 print(f"Error deleting task {task_id}: {e}", file=sys.stderr)

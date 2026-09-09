@@ -19,7 +19,9 @@
       --done-color: #71717a;
       --danger: #ef4444;
       --danger-hover: #dc2626;
+      --urgent-color: #ef4444;
       --modal-bg: rgba(0, 0, 0, 0.75);
+      --frontmatter-bg: #121214;
     }
 
     body.theme-light {
@@ -36,7 +38,9 @@
       --done-color: #94a3b8;
       --danger: #ef4444;
       --danger-hover: #dc2626;
+      --urgent-color: #e11d48;
       --modal-bg: rgba(15, 23, 42, 0.45);
+      --frontmatter-bg: #f1f5f9;
     }
 
     :root {
@@ -64,7 +68,6 @@
       transition: background-color 0.2s, color 0.2s;
     }
 
-    /* State views */
     body.collapsed #sidebar {
       display: none;
     }
@@ -281,14 +284,15 @@
       border-radius: 3px;
     }
 
+    /* Task Card */
     .task-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 7px 9px;
+      padding: 7px 8px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       transition: background 0.15s, border-color 0.15s;
       cursor: pointer;
     }
@@ -296,9 +300,39 @@
       background: var(--bg-card-hover);
       border-color: #52525b;
     }
+    .task-card.dragging {
+      opacity: 0.4;
+      border: 1px dashed var(--accent);
+    }
+    .task-card.drag-over {
+      border-top: 2px solid var(--accent);
+    }
     .task-card.done .task-title-input {
       text-decoration: line-through;
       color: var(--done-color);
+    }
+
+    /* Drag Reorder Handle on the Left */
+    .task-drag-grip {
+      color: var(--text-muted);
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      opacity: 0.4;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+    .task-card:hover .task-drag-grip {
+      opacity: 0.9;
+    }
+    .task-drag-grip:active {
+      cursor: grabbing;
+    }
+    .task-drag-grip svg {
+      width: 12px;
+      height: 12px;
     }
 
     .task-checkbox {
@@ -327,6 +361,32 @@
       transform: rotate(-45deg) translate(1px, -1px);
     }
 
+    /* Priority / Urgent Flag */
+    .btn-flag {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      color: var(--text-muted);
+      transition: color 0.15s, transform 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-flag:hover {
+      color: var(--text-main);
+      transform: scale(1.1);
+    }
+    .btn-flag.active {
+      color: var(--urgent-color);
+    }
+    .btn-flag svg {
+      width: 14px;
+      height: 14px;
+    }
+
     .task-title-input {
       flex: 1;
       background: transparent;
@@ -352,7 +412,7 @@
     .task-actions {
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 2px;
       opacity: 0.7;
       transition: opacity 0.15s;
     }
@@ -399,6 +459,7 @@
       gap: 6px;
     }
 
+    /* Modals & Overlays */
     .app-modal {
       display: none;
       position: absolute;
@@ -443,11 +504,42 @@
       flex-direction: column;
       padding: 12px;
       overflow-y: auto;
-      gap: 12px;
+      gap: 10px;
+    }
+
+    .modal-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .modal-field-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #modal-task-title-input {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    #modal-task-title-input:focus {
+      border-color: var(--accent);
     }
 
     #task-body-input {
       flex: 1;
+      min-height: 120px;
       background: var(--bg-primary);
       color: var(--text-main);
       border: 1px solid var(--border-color);
@@ -462,6 +554,24 @@
     }
     #task-body-input:focus {
       border-color: var(--accent);
+    }
+
+    /* Frontmatter Read-Only Viewer */
+    .frontmatter-viewer {
+      background: var(--frontmatter-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-family: Consolas, "SF Mono", Menlo, Courier, monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: text;
+      -webkit-user-select: text;
+      max-height: 90px;
+      overflow-y: auto;
+      line-height: 1.4;
     }
 
     .settings-group {
@@ -564,7 +674,7 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>+ Новая задача</span>
+            <span>+ New Task</span>
           </button>
 
           <div class="header-actions">
@@ -624,16 +734,30 @@
     </div>
   </div>
 
+  <!-- Task Modal Editor -->
   <div id="editor-modal" class="app-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <span id="modal-task-title">Описание задачи</span>
+        <span>Редактор задачи</span>
         <button id="modal-top-close" class="btn-action" title="Закрыть (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="modal-body">
-        <textarea id="task-body-input" placeholder="Введите подробное описание задачи (Markdown)..."></textarea>
+        <div class="modal-field-group">
+          <label class="modal-field-label">Название задачи</label>
+          <input type="text" id="modal-task-title-input" placeholder="Title задачи...">
+        </div>
+
+        <div class="modal-field-group" style="flex:1;">
+          <label class="modal-field-label">Описание задачи (Markdown)</label>
+          <textarea id="task-body-input" placeholder="Введите подробное описание задачи..."></textarea>
+        </div>
+
+        <div class="modal-field-group">
+          <label class="modal-field-label">Метаданные (YAML Frontmatter)</label>
+          <pre id="modal-frontmatter-view" class="frontmatter-viewer"></pre>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="modal-btn-cancel" class="btn-secondary">Отмена</button>
@@ -642,6 +766,7 @@
     </div>
   </div>
 
+  <!-- Settings Modal -->
   <div id="settings-modal" class="app-modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -677,11 +802,12 @@
     let currentTasks = [];
     let currentFilter = 'active';
     let isPinned = false;
-    let editingTaskId = null;
+    let editingTask = null;
     let hoverTimeout = null;
     let isDragging = false;
     let dragStartY = 0;
     let currentTheme = 'dark';
+    let draggedCard = null;
 
     const collapsedTab = document.getElementById('collapsed-tab');
     const collapsedDragTab = document.getElementById('collapsed-drag-tab');
@@ -697,8 +823,9 @@
     const filterTabs = document.querySelectorAll('.filter-tab');
 
     const editorModal = document.getElementById('editor-modal');
-    const modalTaskTitle = document.getElementById('modal-task-title');
+    const modalTaskTitleInput = document.getElementById('modal-task-title-input');
     const taskBodyInput = document.getElementById('task-body-input');
+    const modalFrontmatterView = document.getElementById('modal-frontmatter-view');
     const modalBtnSave = document.getElementById('modal-btn-save');
     const modalBtnCancel = document.getElementById('modal-btn-cancel');
     const modalTopClose = document.getElementById('modal-top-close');
@@ -785,7 +912,6 @@
     settingsBtnCancel.addEventListener('click', closeSettings);
     settingsTopClose.addEventListener('click', closeSettings);
 
-    // Opening sidebar on collapsed tab hover / click
     collapsedTab.addEventListener('mouseenter', () => {
       hoverTimeout = setTimeout(() => {
         if (window.pywebview && !isDragging) window.pywebview.api.expand();
@@ -801,14 +927,14 @@
       if (window.pywebview && !isDragging) window.pywebview.api.expand();
     });
 
-    // Auto collapse on blur (switching to another application/clicking outside)
+    // Auto collapse on blur
     window.addEventListener('blur', () => {
       if (!isPinned && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
 
-    // Dedicated Drag Tab logic (below square tab)
+    // Dedicated Drag Tab logic
     collapsedDragTab.addEventListener('mousedown', (e) => {
       isDragging = true;
       dragStartY = e.screenY;
@@ -842,13 +968,18 @@
       }
     });
 
+    function switchFilter(filterName) {
+      currentFilter = filterName;
+      filterTabs.forEach(t => {
+        t.classList.toggle('active', t.dataset.filter === filterName);
+      });
+      renderTasks();
+    }
+
     filterTabs.forEach(tab => {
       tab.addEventListener('click', (e) => {
         e.stopPropagation();
-        filterTabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        currentFilter = tab.dataset.filter;
-        renderTasks();
+        switchFilter(tab.dataset.filter);
       });
     });
 
@@ -859,7 +990,13 @@
 
     async function createNewTaskAction() {
       if (!window.pywebview) return;
-      const newTask = await window.pywebview.api.create_task("Новая задача", "");
+      
+      // Auto-switch to 'active' tab if on another filter
+      if (currentFilter !== 'active' && currentFilter !== 'all') {
+        switchFilter('active');
+      }
+
+      const newTask = await window.pywebview.api.create_task("New", "");
       if (newTask) {
         await window.refreshTasks();
         setTimeout(() => {
@@ -875,26 +1012,43 @@
       }
     }
 
+    // Modal Editor Logic
     function openBodyEditor(task) {
-      editingTaskId = task.id;
-      modalTaskTitle.textContent = task.title;
+      editingTask = task;
+      modalTaskTitleInput.value = task.title;
       taskBodyInput.value = task.body || '';
+
+      const meta = task.metadata || {
+        done: task.done,
+        archived: task.archived,
+        urgent: task.urgent,
+        created_at: task.created_at,
+        updated_at: task.updated_at
+      };
+      let lines = ["---"];
+      for (const [k, v] of Object.entries(meta)) {
+        lines.push(`${k}: ${v}`);
+      }
+      lines.push("---");
+      modalFrontmatterView.textContent = lines.join("\n");
+
       editorModal.classList.add('active');
       setTimeout(() => taskBodyInput.focus(), 60);
     }
 
     async function saveBodyEditor() {
-      if (!editingTaskId || !window.pywebview) return;
+      if (!editingTask || !window.pywebview) return;
+      const newTitle = modalTaskTitleInput.value.trim() || editingTask.title;
       const newBody = taskBodyInput.value;
-      await window.pywebview.api.update_task_body(editingTaskId, newBody);
+      await window.pywebview.api.update_task_full(editingTask.id, newTitle, newBody);
       editorModal.classList.remove('active');
-      editingTaskId = null;
+      editingTask = null;
       await window.refreshTasks();
     }
 
     function closeBodyEditor() {
       editorModal.classList.remove('active');
-      editingTaskId = null;
+      editingTask = null;
     }
 
     modalBtnSave.addEventListener('click', saveBodyEditor);
@@ -913,6 +1067,18 @@
       }
     });
 
+    // Task Reorder Persist
+    async function persistCurrentOrder() {
+      const order = [];
+      document.querySelectorAll('.task-card').forEach(card => {
+        if (card.dataset.id) order.push(card.dataset.id);
+      });
+      if (window.pywebview && order.length > 0) {
+        await window.pywebview.api.save_tasks_order(order);
+      }
+    }
+
+    // Render Tasks
     function renderTasks() {
       taskList.innerHTML = '';
 
@@ -941,19 +1107,94 @@
         const card = document.createElement('div');
         card.className = `task-card ${task.done ? 'done' : ''}`;
         card.dataset.id = task.id;
+        card.setAttribute('draggable', 'false');
 
+        // Drag grip handle (left of checkbox)
+        const dragGrip = document.createElement('div');
+        dragGrip.className = 'task-drag-grip';
+        dragGrip.title = "Потяните для изменения порядка задач";
+        dragGrip.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <circle cx="8" cy="6" r="1.5" fill="currentColor"></circle>
+            <circle cx="8" cy="12" r="1.5" fill="currentColor"></circle>
+            <circle cx="8" cy="18" r="1.5" fill="currentColor"></circle>
+            <circle cx="16" cy="6" r="1.5" fill="currentColor"></circle>
+            <circle cx="16" cy="12" r="1.5" fill="currentColor"></circle>
+            <circle cx="16" cy="18" r="1.5" fill="currentColor"></circle>
+          </svg>
+        `;
+
+        dragGrip.addEventListener('mousedown', () => {
+          card.setAttribute('draggable', 'true');
+        });
+        dragGrip.addEventListener('mouseup', () => {
+          card.setAttribute('draggable', 'false');
+        });
+
+        // HTML5 Drag and Drop events
+        card.addEventListener('dragstart', (e) => {
+          draggedCard = card;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', task.id);
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          card.setAttribute('draggable', 'false');
+          document.querySelectorAll('.task-card').forEach(c => c.classList.remove('drag-over'));
+          draggedCard = null;
+          persistCurrentOrder();
+        });
+
+        card.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (draggedCard && draggedCard !== card) {
+            const rect = card.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (e.clientY < midpoint) {
+              taskList.insertBefore(draggedCard, card);
+            } else {
+              taskList.insertBefore(draggedCard, card.nextSibling);
+            }
+          }
+        });
+
+        // Checkbox
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'task-checkbox';
         checkbox.checked = task.done;
         checkbox.addEventListener('change', async (e) => {
           e.stopPropagation();
-          await window.pywebview.api.update_task_status(task.id, checkbox.checked, null);
+          await window.pywebview.api.update_task_status(task.id, checkbox.checked, null, null);
           task.done = checkbox.checked;
           card.classList.toggle('done', task.done);
           if (currentFilter !== 'all') renderTasks();
         });
 
+        // Urgent / Critical Flag button
+        const flagBtn = document.createElement('button');
+        flagBtn.className = `btn-flag ${task.urgent ? 'active' : ''}`;
+        flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
+        flagBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="${task.urgent ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+            <line x1="4" y1="22" x2="4" y2="15"></line>
+          </svg>
+        `;
+        flagBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const targetUrgent = !task.urgent;
+          await window.pywebview.api.update_task_status(task.id, null, null, targetUrgent);
+          task.urgent = targetUrgent;
+          flagBtn.classList.toggle('active', task.urgent);
+          flagBtn.querySelector('svg').setAttribute('fill', task.urgent ? 'currentColor' : 'none');
+          flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
+        });
+
+        // Title input with debounce auto-save
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
         titleInput.className = 'task-title-input';
@@ -997,6 +1238,7 @@
 
         titleInput.addEventListener('click', (e) => e.stopPropagation());
 
+        // Actions
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'task-actions';
 
@@ -1019,7 +1261,7 @@
         archiveBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const targetArchived = !task.archived;
-          await window.pywebview.api.update_task_status(task.id, null, targetArchived);
+          await window.pywebview.api.update_task_status(task.id, null, targetArchived, null);
           task.archived = targetArchived;
           renderTasks();
         });
@@ -1045,7 +1287,9 @@
           openBodyEditor(task);
         });
 
+        card.appendChild(dragGrip);
         card.appendChild(checkbox);
+        card.appendChild(flagBtn);
         card.appendChild(titleInput);
         card.appendChild(actionsDiv);
         taskList.appendChild(card);
