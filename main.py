@@ -73,7 +73,7 @@ class TaskFileHandler(FileSystemEventHandler):
 
 class QuickTaskAPI:
     def __init__(self):
-        self.window: Optional[webview.Window] = None
+        self.window = None
         self.screen_width = 1920
         self.screen_height = 1080
         self.is_expanded = False
@@ -81,17 +81,6 @@ class QuickTaskAPI:
         self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
         self.observer: Optional[Observer] = None
-
-    def set_window(self, window: webview.Window):
-        self.window = window
-        try:
-            screens = webview.screens
-            if screens:
-                primary = screens[0]
-                self.screen_width = primary.width
-                self.screen_height = primary.height
-        except Exception as e:
-            print(f"Error fetching screen resolution: {e}", file=sys.stderr)
 
     def load_config(self) -> Dict[str, Any]:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -423,9 +412,17 @@ def main():
         resizable=False,
         easy_drag=False
     )
-    api.set_window(window)
+    api.window = window
 
     def on_started():
+        try:
+            screens = webview.screens
+            if screens:
+                primary = screens[0]
+                api.screen_width = primary.width
+                api.screen_height = primary.height
+        except Exception:
+            pass
         api.start_watcher()
         api.register_hotkey()
 
