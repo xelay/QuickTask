@@ -41,7 +41,7 @@
 
     :root {
       --handle-width: 36px;
-      --handle-height: 64px;
+      --handle-height: 36px;
     }
 
     * {
@@ -75,6 +75,7 @@
       display: flex;
     }
 
+    /* Square 36x36 px handle */
     #collapsed-handle {
       display: flex;
       width: var(--handle-width);
@@ -82,7 +83,7 @@
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
-      border-radius: 8px 0 0 8px;
+      border-radius: 6px 0 0 6px;
       align-items: center;
       justify-content: center;
       cursor: pointer;
@@ -96,8 +97,8 @@
       transform: translateX(-2px);
     }
     #collapsed-handle svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
     }
 
     #sidebar {
@@ -514,6 +515,7 @@
 </head>
 <body class="collapsed theme-dark">
 
+  <!-- Square 36x36 px handle with real checkmark icon -->
   <div id="collapsed-handle" title="QuickTask (Кликните или наведите)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 11l3 3L22 4"></path>

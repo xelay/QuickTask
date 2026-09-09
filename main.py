@@ -25,7 +25,7 @@ DEFAULT_TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
 DEFAULT_CONFIG = {
     "sidebar_width": 380,
     "handle_width": 36,
-    "handle_height": 64,
+    "handle_height": 36,
     "window_y": 120,
     "hotkey": "ctrl+alt+t",
     "pinned": False,
@@ -177,7 +177,7 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        h_height = int(self.config.get("handle_height", 64))
+        h_height = int(self.config.get("handle_height", 36))
         x = self.screen_width - h_width
         y = int(self.config.get("window_y", 120))
 
@@ -241,7 +241,7 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        new_y = max(0, min(self.screen_height - int(self.config.get("handle_height", 64)), current_y + delta_y))
+        new_y = max(0, min(self.screen_height - int(self.config.get("handle_height", 36)), current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
         if not self.is_expanded and self.window:
@@ -407,8 +407,8 @@ def main():
     api = QuickTaskAPI()
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
-    h_width = api.config.get("handle_width", 36)
-    h_height = api.config.get("handle_height", 64)
+    h_width = int(api.config.get("handle_width", 36))
+    h_height = int(api.config.get("handle_height", 36))
 
     window = webview.create_window(
         title="QuickTask",
