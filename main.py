@@ -601,7 +601,7 @@ def main():
         api.start_watcher()
         api.register_hotkey()
 
-    webview.start(on_started, debug=False)
+    webview.start(on_started, debug=True)
 
 if __name__ == "__main__":
     main()

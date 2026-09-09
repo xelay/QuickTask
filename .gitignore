@@ -1,0 +1,122 @@
+# Виртуальное окружение
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Файлы байт-кода Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Распределения / упаковки
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Логи и базы данных
+*.log
+*.sqlite
+*.sqlite3
+
+# Файлы окружения
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/*.iml
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Файлы отладки и профилирования
+*.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.ruff_cache/
+
+# Файлы тестов
+.pytest_cache/
+.tox/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.temp
+
+# Миграции (опционально - если используете Django)
+# */migrations/
+# !*/migrations/__init__.py
+
+# Секреты и ключи
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+config.local.*
+
+# Папки с данными (если не хотите их в репозитории)
+data/
+datasets/
+*.hdf5
+*.pkl
+*.pickle
+
+# Файлы сборки
+*.pyc
+*.pyo
+*.pyd
+.python-version
+
+# Linux/Mac системные файлы
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
