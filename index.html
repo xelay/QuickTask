@@ -41,7 +41,9 @@
 
     :root {
       --handle-width: 36px;
-      --handle-height: 36px;
+      --tab-height: 36px;
+      --drag-height: 20px;
+      --handle-total-height: 60px;
     }
 
     * {
@@ -62,76 +64,96 @@
       transition: background-color 0.2s, color 0.2s;
     }
 
+    /* State views */
     body.collapsed #sidebar {
       display: none;
     }
-    body.collapsed #collapsed-handle {
+    body.collapsed #collapsed-wrapper {
       display: flex;
     }
-    body.expanded #collapsed-handle {
+    body.expanded #collapsed-wrapper {
       display: none;
     }
     body.expanded #sidebar {
       display: flex;
     }
 
-    /* Square 36x36 px handle */
-    #collapsed-handle {
+    /* Collapsed Stack: Main Tab + Dedicated Drag Handle Below */
+    #collapsed-wrapper {
       display: flex;
+      flex-direction: column;
       width: var(--handle-width);
-      height: var(--handle-height);
+      height: var(--handle-total-height);
+      gap: 3px;
+      padding: 0;
+      align-items: stretch;
+    }
+
+    /* 1. Main Square Tab (36x36 px) */
+    #collapsed-tab {
+      width: var(--handle-width);
+      height: var(--tab-height);
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
-      border-radius: 6px 0 0 6px;
+      border-radius: 8px 0 0 8px;
+      display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: -3px 0 12px rgba(0,0,0,0.3);
+      box-shadow: -3px 0 10px rgba(0,0,0,0.3);
       color: var(--accent);
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      flex-shrink: 0;
     }
-    #collapsed-handle:hover {
+    #collapsed-tab:hover {
       background: var(--accent);
       color: #ffffff;
       transform: translateX(-2px);
     }
-    #collapsed-handle svg {
+    #collapsed-tab svg {
       width: 18px;
       height: 18px;
     }
 
+    /* 2. Drag Handle Tab Below (36x20 px) - Hovering does NOT expand */
+    #collapsed-drag-tab {
+      width: var(--handle-width);
+      height: var(--drag-height);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: ns-resize;
+      box-shadow: -3px 0 10px rgba(0,0,0,0.25);
+      color: var(--text-muted);
+      transition: all 0.15s;
+      flex-shrink: 0;
+      opacity: 0.85;
+    }
+    #collapsed-drag-tab:hover {
+      background: var(--bg-card-hover);
+      color: var(--accent);
+      opacity: 1;
+    }
+    #collapsed-drag-tab svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Expanded Sidebar Layout */
     #sidebar {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       width: 100%;
       height: 100%;
       background: var(--bg-primary);
       border-left: 1px solid var(--border-color);
       box-shadow: -6px 0 24px rgba(0,0,0,0.35);
-    }
-
-    #sidebar-drag-handle {
-      width: var(--handle-width);
-      background: var(--bg-secondary);
-      border-right: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: ns-resize;
-      color: var(--text-muted);
-      transition: color 0.2s, background 0.2s;
-      flex-shrink: 0;
-      gap: 8px;
-    }
-    #sidebar-drag-handle:hover {
-      color: var(--accent);
-      background: var(--bg-card-hover);
-    }
-    #sidebar-drag-handle svg {
-      width: 16px;
-      height: 16px;
+      position: relative;
     }
 
     #sidebar-content {
@@ -140,7 +162,6 @@
       flex-direction: column;
       height: 100%;
       overflow: hidden;
-      position: relative;
     }
 
     header {
@@ -515,26 +536,26 @@
 </head>
 <body class="collapsed theme-dark">
 
-  <!-- Square 36x36 px handle with real checkmark icon -->
-  <div id="collapsed-handle" title="QuickTask (Кликните или наведите)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 11l3 3L22 4"></path>
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-    </svg>
-  </div>
-
-  <div id="sidebar">
-    <div id="sidebar-drag-handle" title="Зажмите ЛКМ для перемещения по вертикали">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="9" cy="5" r="1"></circle>
-        <circle cx="9" cy="12" r="1"></circle>
-        <circle cx="9" cy="19" r="1"></circle>
-        <circle cx="15" cy="5" r="1"></circle>
-        <circle cx="15" cy="12" r="1"></circle>
-        <circle cx="15" cy="19" r="1"></circle>
+  <!-- Collapsed Wrapper: Exact Square Tab (36x36) + Independent Drag Handle (36x20) -->
+  <div id="collapsed-wrapper">
+    <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"></path>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
       </svg>
     </div>
 
+    <!-- Drag Handle Tab: Hovering here does NOT open the sidebar. Dragging moves vertically. -->
+    <div id="collapsed-drag-tab" title="Зажмите ЛКМ и потяните для перемещения по вертикали">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="9" x2="16" y2="9"></line>
+        <line x1="8" y1="15" x2="16" y2="15"></line>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Expanded Sidebar (Drag handle removed from here as requested) -->
+  <div id="sidebar">
     <div id="sidebar-content">
       <header>
         <div class="header-top">
@@ -662,9 +683,9 @@
     let dragStartY = 0;
     let currentTheme = 'dark';
 
-    const collapsedHandle = document.getElementById('collapsed-handle');
+    const collapsedTab = document.getElementById('collapsed-tab');
+    const collapsedDragTab = document.getElementById('collapsed-drag-tab');
     const sidebar = document.getElementById('sidebar');
-    const dragHandle = document.getElementById('sidebar-drag-handle');
     const btnNew = document.getElementById('btn-new');
     const btnPin = document.getElementById('btn-pin');
     const btnTheme = document.getElementById('btn-theme');
@@ -764,31 +785,36 @@
     settingsBtnCancel.addEventListener('click', closeSettings);
     settingsTopClose.addEventListener('click', closeSettings);
 
-    collapsedHandle.addEventListener('mouseenter', () => {
+    // Opening sidebar on collapsed tab hover / click
+    collapsedTab.addEventListener('mouseenter', () => {
       hoverTimeout = setTimeout(() => {
-        if (window.pywebview) window.pywebview.api.expand();
+        if (window.pywebview && !isDragging) window.pywebview.api.expand();
       }, 100);
     });
 
-    collapsedHandle.addEventListener('mouseleave', () => {
+    collapsedTab.addEventListener('mouseleave', () => {
       clearTimeout(hoverTimeout);
     });
 
-    collapsedHandle.addEventListener('click', () => {
+    collapsedTab.addEventListener('click', () => {
       clearTimeout(hoverTimeout);
-      if (window.pywebview) window.pywebview.api.expand();
+      if (window.pywebview && !isDragging) window.pywebview.api.expand();
     });
 
+    // Auto collapse
     document.body.addEventListener('mouseleave', () => {
       if (!isPinned && !anyModalOpen() && !isDragging) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
 
-    dragHandle.addEventListener('mousedown', (e) => {
+    // Dedicated Drag Tab logic (below square tab)
+    collapsedDragTab.addEventListener('mousedown', (e) => {
       isDragging = true;
       dragStartY = e.screenY;
+      clearTimeout(hoverTimeout);
       e.preventDefault();
+      e.stopPropagation();
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -803,7 +829,9 @@
     });
 
     window.addEventListener('mouseup', () => {
-      isDragging = false;
+      if (isDragging) {
+        setTimeout(() => { isDragging = false; }, 50);
+      }
     });
 
     btnPin.addEventListener('click', async (e) => {

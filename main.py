@@ -3,7 +3,6 @@ import re
 import sys
 import json
 import time
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -25,7 +24,7 @@ DEFAULT_TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
 DEFAULT_CONFIG = {
     "sidebar_width": 380,
     "handle_width": 36,
-    "handle_height": 36,
+    "handle_total_height": 60,
     "window_y": 120,
     "hotkey": "ctrl+alt+t",
     "pinned": False,
@@ -34,7 +33,6 @@ DEFAULT_CONFIG = {
     "tasks_dir": str(DEFAULT_TASKS_DIR)
 }
 
-# Global references stored outside the JS API class to prevent pywebview reflection recursion
 CURRENT_WINDOW: Optional[webview.Window] = None
 SCREEN_WIDTH: int = 1920
 SCREEN_HEIGHT: int = 1080
@@ -77,11 +75,6 @@ class TaskFileHandler(FileSystemEventHandler):
 
 
 class QuickTaskAPI:
-    """
-    Exposed JS API for pywebview.
-    Contains ONLY serializable configurations and pure service methods.
-    Window and system objects are intentionally kept external to prevent recursive introspection.
-    """
     def __init__(self):
         self.is_expanded = False
         self.config = self.load_config()
@@ -172,11 +165,11 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        h_height = int(self.config.get("handle_height", 36))
+        total_h = int(self.config.get("handle_total_height", 60))
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
-        CURRENT_WINDOW.resize(h_width, h_height)
+        CURRENT_WINDOW.resize(h_width, total_h)
         CURRENT_WINDOW.move(x, y)
         self.is_expanded = False
         CURRENT_WINDOW.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
@@ -236,7 +229,8 @@ class QuickTaskAPI:
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        new_y = max(0, min(SCREEN_HEIGHT - int(self.config.get("handle_height", 36)), current_y + delta_y))
+        total_h = int(self.config.get("handle_total_height", 60))
+        new_y = max(0, min(SCREEN_HEIGHT - total_h, current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
         if not self.is_expanded and CURRENT_WINDOW:
@@ -288,7 +282,7 @@ class QuickTaskAPI:
         file_path = get_unique_filename(self.tasks_dir, base_name)
 
         post = frontmatter.Post(
-            content=f"# {clean_title}\\n\\n{body}".strip(),
+            content=f"# {clean_title}\n\n{body}".strip(),
             done=False,
             archived=False,
             created_at=now_str,
@@ -347,7 +341,7 @@ class QuickTaskAPI:
                 else:
                     body_lines.append(line)
 
-            post.content = f"# {clean_title}\\n\\n" + "\n".join(body_lines).strip()
+            post.content = f"# {clean_title}\n\n" + "\n".join(body_lines).strip()
 
             base_name = sanitize_filename(clean_title)
             new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
@@ -379,7 +373,7 @@ class QuickTaskAPI:
                     title = line.strip()[2:].strip()
                     break
 
-            post.content = f"# {title}\\n\\n{new_body.strip()}"
+            post.content = f"# {title}\n\n{new_body.strip()}"
             with open(file_path, "wb") as f:
                 frontmatter.dump(post, f)
             return True
@@ -405,14 +399,14 @@ def main():
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
     h_width = int(api.config.get("handle_width", 36))
-    h_height = int(api.config.get("handle_height", 36))
+    total_h = int(api.config.get("handle_total_height", 60))
 
     CURRENT_WINDOW = webview.create_window(
         title="QuickTask",
         url=str(html_path.resolve()),
         js_api=api,
         width=h_width,
-        height=h_height,
+        height=total_h,
         x=SCREEN_WIDTH - h_width,
         y=initial_y,
         frameless=True,
