@@ -937,6 +937,7 @@
     let currentFilter = 'active';
     let searchQuery = '';
     let isPinned = false;
+    let isAppFocused = false; // Tracks if user interacted/focused inside window
     let editingTask = null;
     let hoverTimeout = null;
     let isDragging = false;
@@ -990,6 +991,23 @@
              settingsModal.classList.contains('active') ||
              confirmModal.classList.contains('active');
     }
+
+    // Window focus / click state tracking
+    window.addEventListener('focus', () => {
+      isAppFocused = true;
+    });
+
+    document.addEventListener('mousedown', () => {
+      isAppFocused = true;
+    });
+
+    // When focus is lost to another application, collapse if not pinned
+    window.addEventListener('blur', () => {
+      isAppFocused = false;
+      if (!isPinned && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
+        if (window.pywebview) window.pywebview.api.collapse(false);
+      }
+    });
 
     // Live Substring Search Input Handling
     searchInput.addEventListener('input', () => {
@@ -1110,7 +1128,10 @@
 
     collapsedTab.addEventListener('mouseenter', () => {
       hoverTimeout = setTimeout(() => {
-        if (window.pywebview && !isDragging) window.pywebview.api.expand();
+        if (window.pywebview && !isDragging) {
+          isAppFocused = false; // Opened by hover, not yet focused
+          window.pywebview.api.expand();
+        }
       }, 100);
     });
 
@@ -1120,12 +1141,13 @@
 
     collapsedTab.addEventListener('click', () => {
       clearTimeout(hoverTimeout);
+      isAppFocused = true;
       if (window.pywebview && !isDragging) window.pywebview.api.expand();
     });
 
-    // Auto collapse on blur
-    window.addEventListener('blur', () => {
-      if (!isPinned && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
+    // If mouse leaves the sidebar AND user never focused/clicked inside it -> auto-collapse
+    sidebar.addEventListener('mouseleave', () => {
+      if (!isPinned && !isAppFocused && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
@@ -1274,17 +1296,14 @@
       }
     }
 
-    // Render Tasks with Status & Substring Filters
     function renderTasks() {
       taskList.innerHTML = '';
 
       const filtered = currentTasks.filter(task => {
-        // Tab status filtering
         if (currentFilter === 'active' && (task.done || task.archived)) return false;
         if (currentFilter === 'done' && (!task.done || task.archived)) return false;
         if (currentFilter === 'archived' && !task.archived) return false;
 
-        // Substring filtering (case-insensitive in title or body)
         if (searchQuery) {
           const inTitle = (task.title || '').toLowerCase().includes(searchQuery);
           const inBody = (task.body || '').toLowerCase().includes(searchQuery);
