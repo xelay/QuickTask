@@ -189,7 +189,7 @@
       border-bottom: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
     }
 
     .header-top {
@@ -281,6 +281,56 @@
       color: var(--text-main);
       font-weight: 600;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Search Input Container */
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 4px 8px;
+      gap: 6px;
+      transition: border-color 0.15s;
+    }
+    .search-box:focus-within {
+      border-color: var(--accent);
+    }
+    .search-icon {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-size: 12px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .search-input::placeholder {
+      color: var(--text-muted);
+      opacity: 0.8;
+    }
+    .search-clear-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1px;
+      border-radius: 3px;
+    }
+    .search-clear-btn:hover {
+      color: var(--text-main);
     }
 
     #task-list {
@@ -776,6 +826,23 @@
           <div class="filter-tab" data-filter="archived">Архив</div>
           <div class="filter-tab" data-filter="all">Все</div>
         </div>
+
+        <!-- Live Substring Search Input -->
+        <div class="search-box">
+          <div class="search-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <input type="text" id="search-input" class="search-input" placeholder="Поиск по названию и телу...">
+          <button id="search-clear-btn" class="search-clear-btn" title="Очистить поиск">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div id="task-list"></div>
@@ -868,6 +935,7 @@
   <script>
     let currentTasks = [];
     let currentFilter = 'active';
+    let searchQuery = '';
     let isPinned = false;
     let editingTask = null;
     let hoverTimeout = null;
@@ -889,6 +957,10 @@
     const themeIconMoon = document.getElementById('theme-icon-moon');
     const taskList = document.getElementById('task-list');
     const filterTabs = document.querySelectorAll('.filter-tab');
+
+    // Search bar elements
+    const searchInput = document.getElementById('search-input');
+    const searchClearBtn = document.getElementById('search-clear-btn');
 
     const editorModal = document.getElementById('editor-modal');
     const modalTaskTitleInput = document.getElementById('modal-task-title-input');
@@ -918,6 +990,31 @@
              settingsModal.classList.contains('active') ||
              confirmModal.classList.contains('active');
     }
+
+    // Live Substring Search Input Handling
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value.trim().toLowerCase();
+      searchClearBtn.style.display = searchQuery ? 'flex' : 'none';
+      renderTasks();
+    });
+
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchQuery = '';
+      searchClearBtn.style.display = 'none';
+      searchInput.focus();
+      renderTasks();
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && searchInput.value) {
+        searchInput.value = '';
+        searchQuery = '';
+        searchClearBtn.style.display = 'none';
+        renderTasks();
+        e.stopPropagation();
+      }
+    });
 
     function showCustomConfirm(message, title = "Подтверждение", confirmText = "Да", confirmClass = "btn-danger") {
       return new Promise((resolve) => {
@@ -1177,13 +1274,23 @@
       }
     }
 
+    // Render Tasks with Status & Substring Filters
     function renderTasks() {
       taskList.innerHTML = '';
 
       const filtered = currentTasks.filter(task => {
-        if (currentFilter === 'active') return !task.done && !task.archived;
-        if (currentFilter === 'done') return task.done && !task.archived;
-        if (currentFilter === 'archived') return task.archived;
+        // Tab status filtering
+        if (currentFilter === 'active' && (task.done || task.archived)) return false;
+        if (currentFilter === 'done' && (!task.done || task.archived)) return false;
+        if (currentFilter === 'archived' && !task.archived) return false;
+
+        // Substring filtering (case-insensitive in title or body)
+        if (searchQuery) {
+          const inTitle = (task.title || '').toLowerCase().includes(searchQuery);
+          const inBody = (task.body || '').toLowerCase().includes(searchQuery);
+          if (!inTitle && !inBody) return false;
+        }
+
         return true;
       });
 
@@ -1195,7 +1302,7 @@
               <line x1="9" y1="9" x2="15" y2="9"></line>
               <line x1="9" y1="13" x2="13" y2="13"></line>
             </svg>
-            <span>Задач не найдено</span>
+            <span>${searchQuery ? 'Ничего не найдено по запросу' : 'Задач не найдено'}</span>
           </div>
         `;
         return;
@@ -1375,7 +1482,7 @@
 
     window.refreshTasks = async function(force = false) {
       const activeEl = document.activeElement;
-      if (!force && activeEl && activeEl.classList.contains('task-title-input')) {
+      if (!force && activeEl && (activeEl.classList.contains('task-title-input') || activeEl.id === 'search-input')) {
         return;
       }
       if (window.pywebview) {
