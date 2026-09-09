@@ -674,7 +674,7 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>+ New Task</span>
+            <span>New</span>
           </button>
 
           <div class="header-actions">
@@ -998,7 +998,7 @@
 
       const newTask = await window.pywebview.api.create_task("New", "");
       if (newTask) {
-        await window.refreshTasks();
+        await window.refreshTasks(true);
         setTimeout(() => {
           const firstCard = taskList.firstElementChild;
           if (firstCard) {
@@ -1043,7 +1043,7 @@
       await window.pywebview.api.update_task_full(editingTask.id, newTitle, newBody);
       editorModal.classList.remove('active');
       editingTask = null;
-      await window.refreshTasks();
+      await window.refreshTasks(true);
     }
 
     function closeBodyEditor() {
@@ -1194,13 +1194,11 @@
           flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
         });
 
-        // Title input with debounce auto-save
+        // Title input: finishes ONLY on Enter or blur
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
         titleInput.className = 'task-title-input';
         titleInput.value = task.title;
-
-        let saveDebounceTimer = null;
 
         async function commitTitleChange() {
           const val = titleInput.value.trim();
@@ -1216,24 +1214,14 @@
           }
         }
 
-        titleInput.addEventListener('input', () => {
-          clearTimeout(saveDebounceTimer);
-          saveDebounceTimer = setTimeout(() => {
-            commitTitleChange();
-          }, 600);
+        titleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            titleInput.blur();
+          }
         });
 
         titleInput.addEventListener('blur', () => {
-          clearTimeout(saveDebounceTimer);
           commitTitleChange();
-        });
-
-        titleInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            clearTimeout(saveDebounceTimer);
-            commitTitleChange();
-            titleInput.blur();
-          }
         });
 
         titleInput.addEventListener('click', (e) => e.stopPropagation());
@@ -1296,7 +1284,13 @@
       });
     }
 
-    window.refreshTasks = async function() {
+    // Global refresh hook called from watchdog or app
+    window.refreshTasks = async function(force = false) {
+      // If user is currently typing in an input, do not re-render DOM unless forced
+      const activeEl = document.activeElement;
+      if (!force && activeEl && activeEl.classList.contains('task-title-input')) {
+        return;
+      }
       if (window.pywebview) {
         currentTasks = await window.pywebview.api.get_tasks();
         renderTasks();
@@ -1312,7 +1306,7 @@
       isPinned = !!cfg.pinned;
       btnPin.classList.toggle('active', isPinned);
       applyTheme(cfg.theme || 'dark');
-      await window.refreshTasks();
+      await window.refreshTasks(true);
     });
   </script>
 </body>
