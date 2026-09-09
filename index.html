@@ -63,9 +63,9 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent;
+      background: transparent !important;
       color: var(--text-main);
-      transition: background-color 0.2s, color 0.2s;
+      transition: color 0.2s;
     }
 
     body.collapsed #sidebar {
@@ -87,9 +87,12 @@
       flex-direction: column;
       width: var(--handle-width);
       height: var(--handle-total-height);
-      gap: 3px;
+      gap: 4px;
       padding: 0;
+      margin: 0;
+      background: transparent;
       align-items: stretch;
+      overflow: hidden;
     }
 
     /* 1. Main Square Tab (36x36 px) */
@@ -294,7 +297,7 @@
       align-items: center;
       gap: 6px;
       transition: background 0.15s, border-color 0.15s;
-      cursor: pointer;
+      cursor: default;
     }
     .task-card:hover {
       background: var(--bg-card-hover);
@@ -1012,7 +1015,7 @@
       }
     }
 
-    // Modal Editor Logic
+    // Modal Editor Logic (only opened via explicit button)
     function openBodyEditor(task) {
       editingTask = task;
       modalTaskTitleInput.value = task.title;
@@ -1230,6 +1233,7 @@
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'task-actions';
 
+        // Edit body button (only way to open modal editor)
         const editBodyBtn = document.createElement('button');
         editBodyBtn.className = 'btn-action btn-edit-desc';
         editBodyBtn.title = "Редактировать описание задачи";
@@ -1239,6 +1243,7 @@
           openBodyEditor(task);
         });
 
+        // Archive / Restore Button
         const archiveBtn = document.createElement('button');
         archiveBtn.className = 'btn-action';
         archiveBtn.title = task.archived ? "Восстановить из архива" : "Архивировать";
@@ -1254,6 +1259,7 @@
           renderTasks();
         });
 
+        // Delete Button
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-action btn-delete';
         deleteBtn.title = "Удалить навсегда";
@@ -1271,10 +1277,6 @@
         actionsDiv.appendChild(archiveBtn);
         actionsDiv.appendChild(deleteBtn);
 
-        card.addEventListener('dblclick', (e) => {
-          openBodyEditor(task);
-        });
-
         card.appendChild(dragGrip);
         card.appendChild(checkbox);
         card.appendChild(flagBtn);
@@ -1286,7 +1288,6 @@
 
     // Global refresh hook called from watchdog or app
     window.refreshTasks = async function(force = false) {
-      // If user is currently typing in an input, do not re-render DOM unless forced
       const activeEl = document.activeElement;
       if (!force && activeEl && activeEl.classList.contains('task-title-input')) {
         return;

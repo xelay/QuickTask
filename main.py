@@ -67,7 +67,6 @@ class TaskFileHandler(FileSystemEventHandler):
             return
         src_path = getattr(event, "src_path", "")
         dest_path = getattr(event, "dest_path", "")
-        # Ignore index.json updates to prevent feedback loops
         if "index.json" in src_path or "index.json" in dest_path:
             return
         if (src_path and src_path.endswith(".md")) or (dest_path and dest_path.endswith(".md")):
@@ -532,6 +531,7 @@ def main():
         y=initial_y,
         frameless=True,
         on_top=True,
+        transparent=True,
         resizable=False,
         easy_drag=False
     )
