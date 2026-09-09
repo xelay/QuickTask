@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import time
+import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -56,6 +57,32 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
         target = directory / f"{base_name}_{counter}.md"
         counter += 1
     return target
+
+
+def set_win32_window_bounds(x: int, y: int, width: int, height: int):
+    """
+    Directly bypasses WinForms Form MinimumWindowSize (which clamps to 200x100)
+    by calling Windows Win32 MoveWindow API.
+    """
+    if sys.platform == "win32" and CURRENT_WINDOW:
+        try:
+            hwnd = None
+            if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
+                hwnd = getattr(CURRENT_WINDOW.native, "Handle", None)
+                if hwnd and hasattr(hwnd, "ToInt32"):
+                    hwnd = hwnd.ToInt32()
+            if not hwnd:
+                hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+            if hwnd:
+                ctypes.windll.user32.MoveWindow(hwnd, int(x), int(y), int(width), int(height), True)
+                return
+        except Exception as e:
+            print(f"Win32 MoveWindow error: {e}", file=sys.stderr)
+    
+    # Fallback to pywebview API
+    if CURRENT_WINDOW:
+        CURRENT_WINDOW.resize(width, height)
+        CURRENT_WINDOW.move(x, y)
 
 
 class TaskFileHandler(FileSystemEventHandler):
@@ -122,7 +149,7 @@ class QuickTaskAPI:
                     data = json.load(f)
                     cfg = DEFAULT_CONFIG.copy()
                     cfg.update(data)
-                    cfg["handle_total_height"] = 58  # guarantee exact height
+                    cfg["handle_total_height"] = 58
                     return cfg
             except Exception as e:
                 print(f"Error loading config: {e}", file=sys.stderr)
@@ -188,8 +215,7 @@ class QuickTaskAPI:
             
         x = SCREEN_WIDTH - width
         
-        CURRENT_WINDOW.resize(width, target_height)
-        CURRENT_WINDOW.move(x, y)
+        set_win32_window_bounds(x, y, width, target_height)
         self.is_expanded = True
         CURRENT_WINDOW.evaluate_js("document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
 
@@ -200,12 +226,11 @@ class QuickTaskAPI:
             return
         
         h_width = int(self.config.get("handle_width", 36))
-        total_h = 58  # Exact combined height of both handles (36 + 2 + 20)
+        total_h = 58  # Exact height 58px
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
-        CURRENT_WINDOW.resize(h_width, total_h)
-        CURRENT_WINDOW.move(x, y)
+        set_win32_window_bounds(x, y, h_width, total_h)
         self.is_expanded = False
         CURRENT_WINDOW.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
 
@@ -270,7 +295,7 @@ class QuickTaskAPI:
         self.save_config()
         if not self.is_expanded and CURRENT_WINDOW:
             x = SCREEN_WIDTH - int(self.config.get("handle_width", 36))
-            CURRENT_WINDOW.move(x, new_y)
+            set_win32_window_bounds(x, new_y, int(self.config.get("handle_width", 36)), total_h)
         return new_y
 
     def save_tasks_order(self, order: List[str]) -> bool:
@@ -548,6 +573,8 @@ def main():
                 SCREEN_HEIGHT = primary.height
         except Exception:
             pass
+        # Force initial Win32 sizing to override WinForms 200x100 clamp
+        set_win32_window_bounds(SCREEN_WIDTH - h_width, initial_y, h_width, total_h)
         api.start_watcher()
         api.register_hotkey()
 

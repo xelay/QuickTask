@@ -59,7 +59,14 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
 
-    html, body {
+    html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    body {
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -68,8 +75,12 @@
       transition: color 0.2s;
     }
 
+    /* In collapsed state, clamp body strictly to handle size */
     body.collapsed {
-      background: transparent;
+      width: var(--handle-width) !important;
+      height: var(--handle-total-height) !important;
+      background: transparent !important;
+      overflow: hidden !important;
     }
 
     body.collapsed #sidebar {
@@ -905,7 +916,6 @@
              confirmModal.classList.contains('active');
     }
 
-    // Custom Styled Confirmation Dialog
     function showCustomConfirm(message, title = "Подтверждение", confirmText = "Да", confirmClass = "btn-danger") {
       return new Promise((resolve) => {
         confirmTitle.textContent = title;
@@ -1097,7 +1107,6 @@
       }
     }
 
-    // Modal Editor Logic (only opened via explicit button)
     function openBodyEditor(task) {
       editingTask = task;
       modalTaskTitleInput.value = task.title;
@@ -1154,7 +1163,6 @@
       }
     });
 
-    // Task Reorder Persist
     async function persistCurrentOrder() {
       const order = [];
       document.querySelectorAll('.task-card').forEach(card => {
@@ -1165,7 +1173,6 @@
       }
     }
 
-    // Render Tasks
     function renderTasks() {
       taskList.innerHTML = '';
 
@@ -1196,7 +1203,6 @@
         card.dataset.id = task.id;
         card.setAttribute('draggable', 'false');
 
-        // Drag grip handle (left of checkbox)
         const dragGrip = document.createElement('div');
         dragGrip.className = 'task-drag-grip';
         dragGrip.title = "Потяните для изменения порядка задач";
@@ -1218,7 +1224,6 @@
           card.setAttribute('draggable', 'false');
         });
 
-        // HTML5 Drag and Drop events
         card.addEventListener('dragstart', (e) => {
           draggedCard = card;
           card.classList.add('dragging');
@@ -1248,7 +1253,6 @@
           }
         });
 
-        // Checkbox
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'task-checkbox';
@@ -1261,7 +1265,6 @@
           if (currentFilter !== 'all') renderTasks();
         });
 
-        // Urgent / Critical Flag button
         const flagBtn = document.createElement('button');
         flagBtn.className = `btn-flag ${task.urgent ? 'active' : ''}`;
         flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
@@ -1281,7 +1284,6 @@
           flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
         });
 
-        // Title input: finishes ONLY on Enter or blur
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
         titleInput.className = 'task-title-input';
@@ -1313,11 +1315,9 @@
 
         titleInput.addEventListener('click', (e) => e.stopPropagation());
 
-        // Actions
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'task-actions';
 
-        // Edit body button (only way to open modal editor)
         const editBodyBtn = document.createElement('button');
         editBodyBtn.className = 'btn-action btn-edit-desc';
         editBodyBtn.title = "Редактировать описание задачи";
@@ -1327,7 +1327,6 @@
           openBodyEditor(task);
         });
 
-        // Archive / Restore Button
         const archiveBtn = document.createElement('button');
         archiveBtn.className = 'btn-action';
         archiveBtn.title = task.archived ? "Восстановить из архива" : "Архивировать";
@@ -1343,7 +1342,6 @@
           renderTasks();
         });
 
-        // Delete Button with Custom Confirm Modal
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-action btn-delete';
         deleteBtn.title = "Удалить навсегда";
@@ -1371,7 +1369,6 @@
       });
     }
 
-    // Global refresh hook called from watchdog or app
     window.refreshTasks = async function(force = false) {
       const activeEl = document.activeElement;
       if (!force && activeEl && activeEl.classList.contains('task-title-input')) {
