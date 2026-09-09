@@ -245,7 +245,8 @@ class QuickTaskAPI:
 
         for file_path in self.tasks_dir.glob("*.md"):
             try:
-                post = frontmatter.load(str(file_path))
+                with open(file_path, "r", encoding="utf-8") as f:
+                    post = frontmatter.load(f)
                 metadata = post.metadata
                 content = post.content
 
@@ -290,7 +291,7 @@ class QuickTaskAPI:
         )
 
         try:
-            with open(file_path, "wb") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 frontmatter.dump(post, f)
             return {
                 "id": file_path.name,
@@ -310,14 +311,15 @@ class QuickTaskAPI:
         if not file_path.exists():
             return False
         try:
-            post = frontmatter.load(str(file_path))
+            with open(file_path, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
             if done is not None:
                 post.metadata["done"] = bool(done)
             if archived is not None:
                 post.metadata["archived"] = bool(archived)
             post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
 
-            with open(file_path, "wb") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 frontmatter.dump(post, f)
             return True
         except Exception as e:
@@ -330,7 +332,8 @@ class QuickTaskAPI:
             return None
         clean_title = new_title.strip() or "Без названия"
         try:
-            post = frontmatter.load(str(file_path))
+            with open(file_path, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
             post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
 
             body_lines = []
@@ -347,11 +350,11 @@ class QuickTaskAPI:
             new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
 
             if new_file_path.resolve() != file_path.resolve():
-                with open(file_path, "wb") as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     frontmatter.dump(post, f)
                 file_path.rename(new_file_path)
             else:
-                with open(file_path, "wb") as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     frontmatter.dump(post, f)
 
             return new_file_path.name
@@ -364,7 +367,8 @@ class QuickTaskAPI:
         if not file_path.exists():
             return False
         try:
-            post = frontmatter.load(str(file_path))
+            with open(file_path, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
             post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
 
             title = file_path.stem
@@ -374,7 +378,7 @@ class QuickTaskAPI:
                     break
 
             post.content = f"# {title}\n\n{new_body.strip()}"
-            with open(file_path, "wb") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 frontmatter.dump(post, f)
             return True
         except Exception as e:

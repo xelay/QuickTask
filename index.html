@@ -554,7 +554,7 @@
     </div>
   </div>
 
-  <!-- Expanded Sidebar (Drag handle removed from here as requested) -->
+  <!-- Expanded Sidebar -->
   <div id="sidebar">
     <div id="sidebar-content">
       <header>
@@ -801,9 +801,9 @@
       if (window.pywebview && !isDragging) window.pywebview.api.expand();
     });
 
-    // Auto collapse
-    document.body.addEventListener('mouseleave', () => {
-      if (!isPinned && !anyModalOpen() && !isDragging) {
+    // Auto collapse on blur (switching to another application/clicking outside)
+    window.addEventListener('blur', () => {
+      if (!isPinned && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
