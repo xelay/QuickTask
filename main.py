@@ -34,6 +34,11 @@ DEFAULT_CONFIG = {
     "tasks_dir": str(DEFAULT_TASKS_DIR)
 }
 
+# Global references stored outside the JS API class to prevent pywebview reflection recursion
+CURRENT_WINDOW: Optional[webview.Window] = None
+SCREEN_WIDTH: int = 1920
+SCREEN_HEIGHT: int = 1080
+
 def sanitize_filename(title: str, max_length: int = 50) -> str:
     cleaned = re.sub(r'[\\/*?:"<>|]', "", title).strip()
     cleaned = re.sub(r'[\s_]+', "-", cleaned)
@@ -72,10 +77,12 @@ class TaskFileHandler(FileSystemEventHandler):
 
 
 class QuickTaskAPI:
+    """
+    Exposed JS API for pywebview.
+    Contains ONLY serializable configurations and pure service methods.
+    Window and system objects are intentionally kept external to prevent recursive introspection.
+    """
     def __init__(self):
-        self.window = None
-        self.screen_width = 1920
-        self.screen_height = 1080
         self.is_expanded = False
         self.config = self.load_config()
         self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
@@ -120,15 +127,14 @@ class QuickTaskAPI:
     def register_hotkey(self):
         hotkey_combo = self.config.get("hotkey", "ctrl+alt+t")
         if not keyboard:
-            print("keyboard module not available", file=sys.stderr)
             return
 
         def on_hotkey_pressed():
-            if not self.window:
+            if not CURRENT_WINDOW:
                 return
             if not self.is_expanded:
                 self.expand()
-            self.window.evaluate_js("window.onGlobalHotkeyTriggered && window.onGlobalHotkeyTriggered();")
+            CURRENT_WINDOW.evaluate_js("window.onGlobalHotkeyTriggered && window.onGlobalHotkeyTriggered();")
 
         try:
             keyboard.add_hotkey(hotkey_combo, on_hotkey_pressed)
@@ -136,44 +142,44 @@ class QuickTaskAPI:
             print(f"Failed to register global hotkey '{hotkey_combo}': {e}", file=sys.stderr)
 
     def notify_tasks_changed(self):
-        if self.window:
-            self.window.evaluate_js("window.refreshTasks && window.refreshTasks();")
+        if CURRENT_WINDOW:
+            CURRENT_WINDOW.evaluate_js("window.refreshTasks && window.refreshTasks();")
 
     def expand(self):
-        if not self.window:
+        if not CURRENT_WINDOW:
             return
         width = int(self.config.get("sidebar_width", 380))
         max_h = self.config.get("max_height")
         
-        if max_h and int(max_h) > 0 and int(max_h) < self.screen_height:
+        if max_h and int(max_h) > 0 and int(max_h) < SCREEN_HEIGHT:
             target_height = int(max_h)
-            y = max(0, (self.screen_height - target_height) // 2)
+            y = max(0, (SCREEN_HEIGHT - target_height) // 2)
         else:
-            target_height = self.screen_height
+            target_height = SCREEN_HEIGHT
             y = 0
             
-        x = self.screen_width - width
+        x = SCREEN_WIDTH - width
         
-        self.window.resize(width, target_height)
-        self.window.move(x, y)
+        CURRENT_WINDOW.resize(width, target_height)
+        CURRENT_WINDOW.move(x, y)
         self.is_expanded = True
-        self.window.evaluate_js("document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
+        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
 
     def collapse(self, force: bool = False):
-        if not self.window:
+        if not CURRENT_WINDOW:
             return
         if self.config.get("pinned", False) and not force:
             return
         
         h_width = int(self.config.get("handle_width", 36))
         h_height = int(self.config.get("handle_height", 36))
-        x = self.screen_width - h_width
+        x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
-        self.window.resize(h_width, h_height)
-        self.window.move(x, y)
+        CURRENT_WINDOW.resize(h_width, h_height)
+        CURRENT_WINDOW.move(x, y)
         self.is_expanded = False
-        self.window.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
+        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
 
     def toggle_pin(self) -> bool:
         new_state = not self.config.get("pinned", False)
@@ -210,9 +216,9 @@ class QuickTaskAPI:
         return self.config
 
     def select_tasks_directory(self) -> Optional[str]:
-        if not self.window:
+        if not CURRENT_WINDOW:
             return None
-        folder = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        folder = CURRENT_WINDOW.create_file_dialog(webview.FOLDER_DIALOG)
         if folder and len(folder) > 0:
             chosen = folder[0]
             return str(chosen)
@@ -224,18 +230,18 @@ class QuickTaskAPI:
                 self.observer.stop()
             except Exception:
                 pass
-        if self.window:
-            self.window.destroy()
+        if CURRENT_WINDOW:
+            CURRENT_WINDOW.destroy()
         sys.exit(0)
 
     def update_window_y(self, delta_y: int) -> int:
         current_y = int(self.config.get("window_y", 120))
-        new_y = max(0, min(self.screen_height - int(self.config.get("handle_height", 36)), current_y + delta_y))
+        new_y = max(0, min(SCREEN_HEIGHT - int(self.config.get("handle_height", 36)), current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
-        if not self.is_expanded and self.window:
-            x = self.screen_width - int(self.config.get("handle_width", 36))
-            self.window.move(x, new_y)
+        if not self.is_expanded and CURRENT_WINDOW:
+            x = SCREEN_WIDTH - int(self.config.get("handle_width", 36))
+            CURRENT_WINDOW.move(x, new_y)
         return new_y
 
     def get_tasks(self) -> List[Dict[str, Any]]:
@@ -282,7 +288,7 @@ class QuickTaskAPI:
         file_path = get_unique_filename(self.tasks_dir, base_name)
 
         post = frontmatter.Post(
-            content=f"# {clean_title}\n\n{body}".strip(),
+            content=f"# {clean_title}\\n\\n{body}".strip(),
             done=False,
             archived=False,
             created_at=now_str,
@@ -341,7 +347,7 @@ class QuickTaskAPI:
                 else:
                     body_lines.append(line)
 
-            post.content = f"# {clean_title}\n\n" + "\n".join(body_lines).strip()
+            post.content = f"# {clean_title}\\n\\n" + "\n".join(body_lines).strip()
 
             base_name = sanitize_filename(clean_title)
             new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
@@ -373,7 +379,7 @@ class QuickTaskAPI:
                     title = line.strip()[2:].strip()
                     break
 
-            post.content = f"# {title}\n\n{new_body.strip()}"
+            post.content = f"# {title}\\n\\n{new_body.strip()}"
             with open(file_path, "wb") as f:
                 frontmatter.dump(post, f)
             return True
@@ -393,34 +399,36 @@ class QuickTaskAPI:
 
 
 def main():
+    global CURRENT_WINDOW, SCREEN_WIDTH, SCREEN_HEIGHT
+    
     api = QuickTaskAPI()
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
     h_width = int(api.config.get("handle_width", 36))
     h_height = int(api.config.get("handle_height", 36))
 
-    window = webview.create_window(
+    CURRENT_WINDOW = webview.create_window(
         title="QuickTask",
         url=str(html_path.resolve()),
         js_api=api,
         width=h_width,
         height=h_height,
-        x=api.screen_width - h_width,
+        x=SCREEN_WIDTH - h_width,
         y=initial_y,
         frameless=True,
         on_top=True,
         resizable=False,
         easy_drag=False
     )
-    api.window = window
 
     def on_started():
+        global SCREEN_WIDTH, SCREEN_HEIGHT
         try:
             screens = webview.screens
             if screens:
                 primary = screens[0]
-                api.screen_width = primary.width
-                api.screen_height = primary.height
+                SCREEN_WIDTH = primary.width
+                SCREEN_HEIGHT = primary.height
         except Exception:
             pass
         api.start_watcher()
