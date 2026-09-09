@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickTask</title>
+  <style>
+    :root {
+      --bg-primary: #18181b;
+      --bg-secondary: #27272a;
+      --bg-card: #202023;
+      --bg-card-hover: #2d2d31;
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-active: #1d4ed8;
+      --border-color: #3f3f46;
+      --done-color: #71717a;
+      --danger: #ef4444;
+      --handle-width: 36px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      color: var(--text-main);
+    }
+
+    body.collapsed #sidebar {
+      display: none;
+    }
+    body.collapsed #collapsed-handle {
+      display: flex;
+    }
+
+    body.expanded #collapsed-handle {
+      display: none;
+    }
+    body.expanded #sidebar {
+      display: flex;
+    }
+
+    #collapsed-handle {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: -2px 0 10px rgba(0,0,0,0.4);
+      color: var(--accent);
+      transition: background 0.2s, color 0.2s;
+    }
+    #collapsed-handle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    #collapsed-handle svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    #sidebar {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-primary);
+      border-left: 1px solid var(--border-color);
+      box-shadow: -4px 0 16px rgba(0,0,0,0.5);
+    }
+
+    #sidebar-drag-handle {
+      width: var(--handle-width);
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: ns-resize;
+      color: var(--text-muted);
+      transition: color 0.2s;
+      flex-shrink: 0;
+    }
+    #sidebar-drag-handle:hover {
+      color: var(--text-main);
+      background: #323238;
+    }
+    #sidebar-drag-handle svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    #sidebar-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 12px 14px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .btn-new-task {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-new-task:hover {
+      background: var(--accent-hover);
+    }
+    .btn-new-task:active {
+      background: var(--accent-active);
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-icon:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+    }
+    .btn-icon.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .filter-tabs {
+      display: flex;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .filter-tab {
+      flex: 1;
+      text-align: center;
+      font-size: 11px;
+      padding: 5px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .filter-tab:hover {
+      color: var(--text-main);
+    }
+    .filter-tab.active {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    #task-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #task-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    #task-list::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    .task-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s, border-color 0.15s;
+      cursor: default;
+    }
+    .task-card:hover {
+      background: var(--bg-card-hover);
+      border-color: #52525b;
+    }
+    .task-card.done .task-title-input {
+      text-decoration: line-through;
+      color: var(--done-color);
+    }
+
+    .task-checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      display: grid;
+      place-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .task-checkbox:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .task-checkbox:checked::before {
+      content: "";
+      width: 8px;
+      height: 4px;
+      border-left: 2px solid white;
+      border-bottom: 2px solid white;
+      transform: rotate(-45deg) translate(1px, -1px);
+    }
+
+    .task-title-input {
+      flex: 1;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-main);
+      font-size: 13px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .task-title-input:focus {
+      background: var(--bg-primary);
+      border-color: var(--accent);
+      white-space: normal;
+    }
+
+    .task-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0.6;
+      transition: opacity 0.15s;
+    }
+    .task-card:hover .task-actions {
+      opacity: 1;
+    }
+
+    .btn-action {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 3px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-action:hover {
+      background: var(--bg-primary);
+      color: var(--text-main);
+    }
+    .btn-action.btn-delete:hover {
+      color: var(--danger);
+    }
+    .btn-action svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 150px;
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      gap: 6px;
+    }
+
+    #editor-modal {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      padding: 16px;
+      flex-direction: column;
+    }
+    #editor-modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    #task-body-input {
+      flex: 1;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      border: none;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .modal-footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+  </style>
+</head>
+<body class="collapsed">
+
+  <div id="collapsed-handle" title="QuickTask (Наведите для открытия)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-drag-handle" title="Зажмите ЛКМ для перемещения по вертикали">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="5" r="1"></circle>
+        <circle cx="9" cy="12" r="1"></circle>
+        <circle cx="9" cy="19" r="1"></circle>
+        <circle cx="15" cy="5" r="1"></circle>
+        <circle cx="15" cy="12" r="1"></circle>
+        <circle cx="15" cy="19" r="1"></circle>
+      </svg>
+    </div>
+
+    <div id="sidebar-content">
+      <header>
+        <div class="header-top">
+          <button id="btn-new" class="btn-new-task">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>+ New Task</span>
+          </button>
+          <button id="btn-pin" class="btn-icon" title="Закрепить сайдбар">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v8"></path>
+              <path d="m4.93 10.93 4.24-4.24"></path>
+              <path d="m14.83 9.17 4.24-4.24"></path>
+              <path d="M14 12l5 5"></path>
+              <path d="M2 22l7-7"></path>
+              <path d="M9 17l-5-5"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="filter-tabs">
+          <div class="filter-tab active" data-filter="active">Активные</div>
+          <div class="filter-tab" data-filter="done">Выполненные</div>
+          <div class="filter-tab" data-filter="archived">Архив</div>
+          <div class="filter-tab" data-filter="all">Все</div>
+        </div>
+      </header>
+
+      <div id="task-list"></div>
+    </div>
+  </div>
+
+  <div id="editor-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modal-task-title">Редактирование описания</span>
+      </div>
+      <textarea id="task-body-input" placeholder="Введите описание задачи (поддерживается многострочный текст)..."></textarea>
+      <div class="modal-footer">
+        <button id="modal-btn-cancel" class="btn-secondary">Отмена (Esc)</button>
+        <button id="modal-btn-save" class="btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTasks = [];
+    let currentFilter = 'active';
+    let isPinned = false;
+    let editingTaskId = null;
+    let hoverTimeout = null;
+    let isDragging = false;
+    let dragStartY = 0;
+
+    const collapsedHandle = document.getElementById('collapsed-handle');
+    const sidebar = document.getElementById('sidebar');
+    const dragHandle = document.getElementById('sidebar-drag-handle');
+    const btnNew = document.getElementById('btn-new');
+    const btnPin = document.getElementById('btn-pin');
+    const taskList = document.getElementById('task-list');
+    const filterTabs = document.querySelectorAll('.filter-tab');
+    const editorModal = document.getElementById('editor-modal');
+    const modalTaskTitle = document.getElementById('modal-task-title');
+    const taskBodyInput = document.getElementById('task-body-input');
+    const modalBtnSave = document.getElementById('modal-btn-save');
+    const modalBtnCancel = document.getElementById('modal-btn-cancel');
+
+    collapsedHandle.addEventListener('mouseenter', () => {
+      hoverTimeout = setTimeout(() => {
+        if (window.pywebview) {
+          window.pywebview.api.expand();
+        }
+      }, 100);
+    });
+
+    collapsedHandle.addEventListener('mouseleave', () => {
+      clearTimeout(hoverTimeout);
+    });
+
+    document.body.addEventListener('mouseleave', () => {
+      if (!isPinned && !editorModal.classList.contains('active') && !isDragging) {
+        if (window.pywebview) {
+          window.pywebview.api.collapse(false);
+        }
+      }
+    });
+
+    dragHandle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      dragStartY = e.screenY;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const deltaY = e.screenY - dragStartY;
+      if (Math.abs(deltaY) >= 2) {
+        dragStartY = e.screenY;
+        if (window.pywebview) {
+          window.pywebview.api.update_window_y(deltaY);
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    btnPin.addEventListener('click', async () => {
+      if (window.pywebview) {
+        isPinned = await window.pywebview.api.toggle_pin();
+        btnPin.classList.toggle('active', isPinned);
+      }
+    });
+
+    filterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        filterTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.filter;
+        renderTasks();
+      });
+    });
+
+    btnNew.addEventListener('click', async () => {
+      await createNewTaskAction();
+    });
+
+    async function createNewTaskAction() {
+      if (!window.pywebview) return;
+      const newTask = await window.pywebview.api.create_task("Новая задача", "");
+      if (newTask) {
+        await window.refreshTasks();
+        setTimeout(() => {
+          const firstCard = taskList.firstElementChild;
+          if (firstCard) {
+            const input = firstCard.querySelector('.task-title-input');
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        }, 80);
+      }
+    }
+
+    function openBodyEditor(task) {
+      editingTaskId = task.id;
+      modalTaskTitle.textContent = task.title;
+      taskBodyInput.value = task.body || '';
+      editorModal.classList.add('active');
+      setTimeout(() => taskBodyInput.focus(), 50);
+    }
+
+    async function saveBodyEditor() {
+      if (!editingTaskId || !window.pywebview) return;
+      const newBody = taskBodyInput.value;
+      await window.pywebview.api.update_task_body(editingTaskId, newBody);
+      editorModal.classList.remove('active');
+      editingTaskId = null;
+      await window.refreshTasks();
+    }
+
+    function closeBodyEditor() {
+      editorModal.classList.remove('active');
+      editingTaskId = null;
+    }
+
+    modalBtnSave.addEventListener('click', saveBodyEditor);
+    modalBtnCancel.addEventListener('click', closeBodyEditor);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (editorModal.classList.contains('active')) {
+          saveBodyEditor();
+        } else if (!isPinned) {
+          if (window.pywebview) window.pywebview.api.collapse(true);
+        }
+      }
+    });
+
+    function renderTasks() {
+      taskList.innerHTML = '';
+
+      const filtered = currentTasks.filter(task => {
+        if (currentFilter === 'active') return !task.done && !task.archived;
+        if (currentFilter === 'done') return task.done && !task.archived;
+        if (currentFilter === 'archived') return task.archived;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        taskList.innerHTML = `
+          <div class="empty-state">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="9" x2="15" y2="9"></line>
+              <line x1="9" y1="13" x2="13" y2="13"></line>
+            </svg>
+            <span>Задач не найдено</span>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(task => {
+        const card = document.createElement('div');
+        card.className = `task-card ${task.done ? 'done' : ''}`;
+        card.dataset.id = task.id;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'task-checkbox';
+        checkbox.checked = task.done;
+        checkbox.addEventListener('change', async (e) => {
+          e.stopPropagation();
+          await window.pywebview.api.update_task_status(task.id, checkbox.checked, null);
+          task.done = checkbox.checked;
+          card.classList.toggle('done', task.done);
+          if (currentFilter !== 'all') renderTasks();
+        });
+
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.className = 'task-title-input';
+        titleInput.value = task.title;
+
+        titleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            titleInput.blur();
+          }
+        });
+
+        titleInput.addEventListener('blur', async () => {
+          const val = titleInput.value.trim();
+          if (val && val !== task.title) {
+            const newId = await window.pywebview.api.update_task_title(task.id, val);
+            if (newId) {
+              task.id = newId;
+              task.title = val;
+            }
+          } else {
+            titleInput.value = task.title;
+          }
+        });
+
+        titleInput.addEventListener('click', (e) => e.stopPropagation());
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'task-actions';
+
+        const archiveBtn = document.createElement('button');
+        archiveBtn.className = 'btn-action';
+        archiveBtn.title = task.archived ? "Восстановить из архива" : "Архивировать";
+        archiveBtn.innerHTML = task.archived
+          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
+          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
+
+        archiveBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const targetArchived = !task.archived;
+          await window.pywebview.api.update_task_status(task.id, null, targetArchived);
+          task.archived = targetArchived;
+          renderTasks();
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-action btn-delete';
+        deleteBtn.title = "Удалить навсегда";
+        deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await window.pywebview.api.delete_task(task.id);
+          currentTasks = currentTasks.filter(t => t.id !== task.id);
+          renderTasks();
+        });
+
+        actionsDiv.appendChild(archiveBtn);
+        actionsDiv.appendChild(deleteBtn);
+
+        card.addEventListener('dblclick', () => {
+          openBodyEditor(task);
+        });
+
+        card.appendChild(checkbox);
+        card.appendChild(titleInput);
+        card.appendChild(actionsDiv);
+        taskList.appendChild(card);
+      });
+    }
+
+    window.refreshTasks = async function() {
+      if (window.pywebview) {
+        currentTasks = await window.pywebview.api.get_tasks();
+        renderTasks();
+      }
+    };
+
+    window.onGlobalHotkeyTriggered = function() {
+      createNewTaskAction();
+    };
+
+    window.addEventListener('pywebviewready', async () => {
+      const cfg = await window.pywebview.api.get_config();
+      isPinned = !!cfg.pinned;
+      btnPin.classList.toggle('active', isPinned);
+      await window.refreshTasks();
+    });
+  </script>
+</body>
+</html>
