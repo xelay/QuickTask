@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import time
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -19,7 +20,7 @@ except ImportError:
 
 CONFIG_DIR = Path.home() / ".quicktask"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
+DEFAULT_TASKS_DIR = Path.home() / "Documents" / "QuickTasks"
 
 DEFAULT_CONFIG = {
     "sidebar_width": 380,
@@ -28,7 +29,9 @@ DEFAULT_CONFIG = {
     "window_y": 120,
     "hotkey": "ctrl+alt+t",
     "pinned": False,
-    "max_height": None
+    "max_height": None,
+    "theme": "dark",
+    "tasks_dir": str(DEFAULT_TASKS_DIR)
 }
 
 def sanitize_filename(title: str, max_length: int = 50) -> str:
@@ -63,7 +66,7 @@ class TaskFileHandler(FileSystemEventHandler):
         dest_path = getattr(event, "dest_path", "")
         if (src_path and src_path.endswith(".md")) or (dest_path and dest_path.endswith(".md")):
             now = time.time()
-            if now - self._last_event_time > 0.2:
+            if now - self._last_event_time > 0.3:
                 self._last_event_time = now
                 self.api.notify_tasks_changed()
 
@@ -75,7 +78,7 @@ class QuickTaskAPI:
         self.screen_height = 1080
         self.is_expanded = False
         self.config = self.load_config()
-        self.tasks_dir = TASKS_DIR
+        self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
         self.observer: Optional[Observer] = None
 
@@ -112,6 +115,13 @@ class QuickTaskAPI:
             print(f"Error saving config: {e}", file=sys.stderr)
 
     def start_watcher(self):
+        if self.observer:
+            try:
+                self.observer.stop()
+                self.observer.join()
+            except Exception:
+                pass
+        self.tasks_dir.mkdir(parents=True, exist_ok=True)
         event_handler = TaskFileHandler(self)
         self.observer = Observer()
         self.observer.schedule(event_handler, str(self.tasks_dir), recursive=False)
@@ -143,10 +153,17 @@ class QuickTaskAPI:
     def expand(self):
         if not self.window:
             return
-        width = self.config.get("sidebar_width", 380)
-        target_height = self.config.get("max_height") or self.screen_height
+        width = int(self.config.get("sidebar_width", 380))
+        max_h = self.config.get("max_height")
+        
+        if max_h and int(max_h) > 0 and int(max_h) < self.screen_height:
+            target_height = int(max_h)
+            y = max(0, (self.screen_height - target_height) // 2)
+        else:
+            target_height = self.screen_height
+            y = 0
+            
         x = self.screen_width - width
-        y = 0 if not self.config.get("max_height") else self.config.get("window_y", 120)
         
         self.window.resize(width, target_height)
         self.window.move(x, y)
@@ -159,10 +176,10 @@ class QuickTaskAPI:
         if self.config.get("pinned", False) and not force:
             return
         
-        h_width = self.config.get("handle_width", 36)
-        h_height = self.config.get("handle_height", 64)
+        h_width = int(self.config.get("handle_width", 36))
+        h_height = int(self.config.get("handle_height", 64))
         x = self.screen_width - h_width
-        y = self.config.get("window_y", 120)
+        y = int(self.config.get("window_y", 120))
 
         self.window.resize(h_width, h_height)
         self.window.move(x, y)
@@ -178,18 +195,65 @@ class QuickTaskAPI:
     def get_config(self) -> Dict[str, Any]:
         return self.config
 
+    def set_theme(self, theme_name: str) -> str:
+        self.config["theme"] = "light" if theme_name == "light" else "dark"
+        self.save_config()
+        return self.config["theme"]
+
+    def save_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        if "max_height" in settings:
+            val = settings["max_height"]
+            self.config["max_height"] = int(val) if val and str(val).isdigit() and int(val) > 0 else None
+        
+        if "tasks_dir" in settings and settings["tasks_dir"]:
+            new_path = Path(settings["tasks_dir"]).expanduser().resolve()
+            if new_path != self.tasks_dir:
+                self.tasks_dir = new_path
+                self.config["tasks_dir"] = str(new_path)
+                self.start_watcher()
+
+        if "theme" in settings:
+            self.config["theme"] = settings["theme"]
+
+        self.save_config()
+        if self.is_expanded:
+            self.expand()
+        return self.config
+
+    def select_tasks_directory(self) -> Optional[str]:
+        if not self.window:
+            return None
+        folder = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        if folder and len(folder) > 0:
+            chosen = folder[0]
+            return str(chosen)
+        return None
+
+    def close_app(self):
+        if self.observer:
+            try:
+                self.observer.stop()
+            except Exception:
+                pass
+        if self.window:
+            self.window.destroy()
+        sys.exit(0)
+
     def update_window_y(self, delta_y: int) -> int:
-        current_y = self.config.get("window_y", 120)
-        new_y = max(0, min(self.screen_height - self.config.get("handle_height", 64), current_y + delta_y))
+        current_y = int(self.config.get("window_y", 120))
+        new_y = max(0, min(self.screen_height - int(self.config.get("handle_height", 64)), current_y + delta_y))
         self.config["window_y"] = new_y
         self.save_config()
         if not self.is_expanded and self.window:
-            x = self.screen_width - self.config.get("handle_width", 36)
+            x = self.screen_width - int(self.config.get("handle_width", 36))
             self.window.move(x, new_y)
         return new_y
 
     def get_tasks(self) -> List[Dict[str, Any]]:
         tasks = []
+        if not self.tasks_dir.exists():
+            return tasks
+
         for file_path in self.tasks_dir.glob("*.md"):
             try:
                 post = frontmatter.load(str(file_path))
@@ -222,9 +286,9 @@ class QuickTaskAPI:
         tasks.sort(key=lambda t: t.get("updated_at") or t.get("created_at") or "", reverse=True)
         return tasks
 
-    def create_task(self, title: str = "New Task", body: str = "") -> Optional[Dict[str, Any]]:
+    def create_task(self, title: str = "Новая задача", body: str = "") -> Optional[Dict[str, Any]]:
         now_str = datetime.now().isoformat(timespec="seconds")
-        clean_title = title.strip() or "New Task"
+        clean_title = title.strip() or "Новая задача"
         base_name = sanitize_filename(clean_title)
         file_path = get_unique_filename(self.tasks_dir, base_name)
 
@@ -275,7 +339,7 @@ class QuickTaskAPI:
         file_path = self.tasks_dir / task_id
         if not file_path.exists():
             return None
-        clean_title = new_title.strip() or "Untitled"
+        clean_title = new_title.strip() or "Без названия"
         try:
             post = frontmatter.load(str(file_path))
             post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -293,10 +357,10 @@ class QuickTaskAPI:
             base_name = sanitize_filename(clean_title)
             new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
 
-            if new_file_path != file_path:
+            if new_file_path.resolve() != file_path.resolve():
                 with open(file_path, "wb") as f:
                     frontmatter.dump(post, f)
-                os.rename(file_path, new_file_path)
+                file_path.rename(new_file_path)
             else:
                 with open(file_path, "wb") as f:
                     frontmatter.dump(post, f)

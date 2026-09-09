@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QuickTask</title>
   <style>
-    :root {
+    body.theme-dark {
       --bg-primary: #18181b;
       --bg-secondary: #27272a;
       --bg-card: #202023;
@@ -18,7 +18,30 @@
       --border-color: #3f3f46;
       --done-color: #71717a;
       --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --modal-bg: rgba(0, 0, 0, 0.75);
+    }
+
+    body.theme-light {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-active: #1e40af;
+      --border-color: #e2e8f0;
+      --done-color: #94a3b8;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --modal-bg: rgba(15, 23, 42, 0.45);
+    }
+
+    :root {
       --handle-width: 36px;
+      --handle-height: 64px;
     }
 
     * {
@@ -36,6 +59,7 @@
       overflow: hidden;
       background: transparent;
       color: var(--text-main);
+      transition: background-color 0.2s, color 0.2s;
     }
 
     body.collapsed #sidebar {
@@ -44,7 +68,6 @@
     body.collapsed #collapsed-handle {
       display: flex;
     }
-
     body.expanded #collapsed-handle {
       display: none;
     }
@@ -54,8 +77,8 @@
 
     #collapsed-handle {
       display: flex;
-      width: 100%;
-      height: 100%;
+      width: var(--handle-width);
+      height: var(--handle-height);
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
@@ -63,13 +86,14 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: -2px 0 10px rgba(0,0,0,0.4);
+      box-shadow: -3px 0 12px rgba(0,0,0,0.3);
       color: var(--accent);
-      transition: background 0.2s, color 0.2s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     #collapsed-handle:hover {
       background: var(--accent);
-      color: #fff;
+      color: #ffffff;
+      transform: translateX(-2px);
     }
     #collapsed-handle svg {
       width: 20px;
@@ -83,7 +107,7 @@
       height: 100%;
       background: var(--bg-primary);
       border-left: 1px solid var(--border-color);
-      box-shadow: -4px 0 16px rgba(0,0,0,0.5);
+      box-shadow: -6px 0 24px rgba(0,0,0,0.35);
     }
 
     #sidebar-drag-handle {
@@ -96,12 +120,13 @@
       justify-content: center;
       cursor: ns-resize;
       color: var(--text-muted);
-      transition: color 0.2s;
+      transition: color 0.2s, background 0.2s;
       flex-shrink: 0;
+      gap: 8px;
     }
     #sidebar-drag-handle:hover {
-      color: var(--text-main);
-      background: #323238;
+      color: var(--accent);
+      background: var(--bg-card-hover);
     }
     #sidebar-drag-handle svg {
       width: 16px;
@@ -114,22 +139,23 @@
       flex-direction: column;
       height: 100%;
       overflow: hidden;
+      position: relative;
     }
 
     header {
-      padding: 12px 14px;
+      padding: 10px 12px;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
 
     .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 6px;
     }
 
     .btn-new-task {
@@ -141,7 +167,7 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      padding: 8px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       font-size: 13px;
       font-weight: 600;
@@ -155,13 +181,19 @@
       background: var(--accent-active);
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     .btn-icon {
       background: transparent;
       border: 1px solid var(--border-color);
       color: var(--text-muted);
       border-radius: 6px;
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -177,6 +209,11 @@
       color: #fff;
       border-color: var(--accent);
     }
+    .btn-icon.btn-close-app:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
 
     .filter-tabs {
       display: flex;
@@ -189,7 +226,7 @@
       flex: 1;
       text-align: center;
       font-size: 11px;
-      padding: 5px 4px;
+      padding: 5px 2px;
       border-radius: 4px;
       cursor: pointer;
       color: var(--text-muted);
@@ -202,19 +239,20 @@
       background: var(--bg-secondary);
       color: var(--text-main);
       font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
     #task-list {
       flex: 1;
       overflow-y: auto;
-      padding: 10px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     #task-list::-webkit-scrollbar {
-      width: 6px;
+      width: 5px;
     }
     #task-list::-webkit-scrollbar-thumb {
       background: var(--border-color);
@@ -225,12 +263,12 @@
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 7px 9px;
       display: flex;
       align-items: center;
       gap: 8px;
       transition: background 0.15s, border-color 0.15s;
-      cursor: default;
+      cursor: pointer;
     }
     .task-card:hover {
       background: var(--bg-card-hover);
@@ -281,6 +319,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       overflow: hidden;
+      cursor: text;
     }
     .task-title-input:focus {
       background: var(--bg-primary);
@@ -290,8 +329,9 @@
 
     .task-actions {
       display: flex;
-      gap: 4px;
-      opacity: 0.6;
+      align-items: center;
+      gap: 3px;
+      opacity: 0.7;
       transition: opacity 0.15s;
     }
     .task-card:hover .task-actions {
@@ -303,11 +343,12 @@
       border: none;
       color: var(--text-muted);
       cursor: pointer;
-      padding: 3px;
+      padding: 4px;
       border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: background 0.15s, color 0.15s;
     }
     .btn-action:hover {
       background: var(--bg-primary);
@@ -315,6 +356,9 @@
     }
     .btn-action.btn-delete:hover {
       color: var(--danger);
+    }
+    .btn-action.btn-edit-desc:hover {
+      color: var(--accent);
     }
     .btn-action svg {
       width: 14px;
@@ -326,27 +370,27 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 150px;
+      height: 140px;
       color: var(--text-muted);
       font-size: 13px;
       text-align: center;
       gap: 6px;
     }
 
-    #editor-modal {
+    .app-modal {
       display: none;
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.7);
+      background: var(--modal-bg);
       backdrop-filter: blur(2px);
       z-index: 100;
-      padding: 16px;
+      padding: 12px;
       flex-direction: column;
     }
-    #editor-modal.active {
+    .app-modal.active {
       display: flex;
     }
 
@@ -371,18 +415,64 @@
       font-weight: 600;
     }
 
+    .modal-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow-y: auto;
+      gap: 12px;
+    }
+
     #task-body-input {
       flex: 1;
       background: var(--bg-primary);
       color: var(--text-main);
-      border: none;
-      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px;
       font-size: 13px;
       line-height: 1.5;
       resize: none;
       outline: none;
       user-select: text;
       -webkit-user-select: text;
+    }
+    #task-body-input:focus {
+      border-color: var(--accent);
+    }
+
+    .settings-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .settings-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .settings-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+    .settings-input {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      color: var(--text-main);
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      width: 100%;
+    }
+    .settings-input:focus {
+      border-color: var(--accent);
+    }
+    .folder-picker-box {
+      display: flex;
+      gap: 6px;
     }
 
     .modal-footer {
@@ -398,7 +488,7 @@
       border: 1px solid var(--border-color);
       color: var(--text-muted);
       padding: 6px 12px;
-      border-radius: 4px;
+      border-radius: 5px;
       font-size: 12px;
       cursor: pointer;
     }
@@ -412,7 +502,7 @@
       color: #fff;
       border: none;
       padding: 6px 14px;
-      border-radius: 4px;
+      border-radius: 5px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -422,11 +512,12 @@
     }
   </style>
 </head>
-<body class="collapsed">
+<body class="collapsed theme-dark">
 
-  <div id="collapsed-handle" title="QuickTask (Наведите для открытия)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="15 18 9 12 15 6"></polyline>
+  <div id="collapsed-handle" title="QuickTask (Кликните или наведите)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 11l3 3L22 4"></path>
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
     </svg>
   </div>
 
@@ -450,18 +541,52 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>+ New Task</span>
+            <span>+ Новая задача</span>
           </button>
-          <button id="btn-pin" class="btn-icon" title="Закрепить сайдбар">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2v8"></path>
-              <path d="m4.93 10.93 4.24-4.24"></path>
-              <path d="m14.83 9.17 4.24-4.24"></path>
-              <path d="M14 12l5 5"></path>
-              <path d="M2 22l7-7"></path>
-              <path d="M9 17l-5-5"></path>
-            </svg>
-          </button>
+
+          <div class="header-actions">
+            <button id="btn-theme" class="btn-icon" title="Переключить тему (Светлая / Темная)">
+              <svg id="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg id="theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </button>
+
+            <button id="btn-settings" class="btn-icon" title="Настройки">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+
+            <button id="btn-pin" class="btn-icon" title="Закрепить сайдбар">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v8"></path>
+                <path d="m4.93 10.93 4.24-4.24"></path>
+                <path d="m14.83 9.17 4.24-4.24"></path>
+                <path d="M14 12l5 5"></path>
+                <path d="M2 22l7-7"></path>
+                <path d="M9 17l-5-5"></path>
+              </svg>
+            </button>
+
+            <button id="btn-close-app" class="btn-icon btn-close-app" title="Закрыть приложение полностью">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="filter-tabs">
@@ -476,15 +601,51 @@
     </div>
   </div>
 
-  <div id="editor-modal">
+  <div id="editor-modal" class="app-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <span id="modal-task-title">Редактирование описания</span>
+        <span id="modal-task-title">Описание задачи</span>
+        <button id="modal-top-close" class="btn-action" title="Закрыть (Esc)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
-      <textarea id="task-body-input" placeholder="Введите описание задачи (поддерживается многострочный текст)..."></textarea>
+      <div class="modal-body">
+        <textarea id="task-body-input" placeholder="Введите подробное описание задачи (Markdown)..."></textarea>
+      </div>
       <div class="modal-footer">
-        <button id="modal-btn-cancel" class="btn-secondary">Отмена (Esc)</button>
+        <button id="modal-btn-cancel" class="btn-secondary">Отмена</button>
         <button id="modal-btn-save" class="btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="app-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>Настройки QuickTask</span>
+        <button id="settings-top-close" class="btn-action" title="Закрыть">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <label class="settings-label">Папка хранения задач (.md)</label>
+          <div class="folder-picker-box">
+            <input type="text" id="setting-tasks-dir" class="settings-input" readonly>
+            <button id="btn-browse-folder" class="btn-secondary">Обзор...</button>
+          </div>
+          <span class="settings-hint">Путь к каталогу с вашими Markdown-файлами задач.</span>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label">Высота сайдбара (пиксели)</label>
+          <input type="number" id="setting-max-height" class="settings-input" placeholder="Оставьте пустым для полной высоты экрана" min="300" max="2160">
+          <span class="settings-hint">Если задана фиксированная высота (например 700), сайдбар центрируется вертикально на экране с равными отступами сверху и снизу.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="settings-btn-cancel" class="btn-secondary">Отмена</button>
+        <button id="settings-btn-save" class="btn-primary">Применить</button>
       </div>
     </div>
   </div>
@@ -497,25 +658,113 @@
     let hoverTimeout = null;
     let isDragging = false;
     let dragStartY = 0;
+    let currentTheme = 'dark';
 
     const collapsedHandle = document.getElementById('collapsed-handle');
     const sidebar = document.getElementById('sidebar');
     const dragHandle = document.getElementById('sidebar-drag-handle');
     const btnNew = document.getElementById('btn-new');
     const btnPin = document.getElementById('btn-pin');
+    const btnTheme = document.getElementById('btn-theme');
+    const btnSettings = document.getElementById('btn-settings');
+    const btnCloseApp = document.getElementById('btn-close-app');
+    const themeIconSun = document.getElementById('theme-icon-sun');
+    const themeIconMoon = document.getElementById('theme-icon-moon');
     const taskList = document.getElementById('task-list');
     const filterTabs = document.querySelectorAll('.filter-tab');
+
     const editorModal = document.getElementById('editor-modal');
     const modalTaskTitle = document.getElementById('modal-task-title');
     const taskBodyInput = document.getElementById('task-body-input');
     const modalBtnSave = document.getElementById('modal-btn-save');
     const modalBtnCancel = document.getElementById('modal-btn-cancel');
+    const modalTopClose = document.getElementById('modal-top-close');
+
+    const settingsModal = document.getElementById('settings-modal');
+    const settingTasksDir = document.getElementById('setting-tasks-dir');
+    const settingMaxHeight = document.getElementById('setting-max-height');
+    const btnBrowseFolder = document.getElementById('btn-browse-folder');
+    const settingsBtnSave = document.getElementById('settings-btn-save');
+    const settingsBtnCancel = document.getElementById('settings-btn-cancel');
+    const settingsTopClose = document.getElementById('settings-top-close');
+
+    function anyModalOpen() {
+      return editorModal.classList.contains('active') || settingsModal.classList.contains('active');
+    }
+
+    btnCloseApp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm('Вы уверены, что хотите полностью закрыть QuickTask?')) {
+        if (window.pywebview) {
+          window.pywebview.api.close_app();
+        }
+      }
+    });
+
+    function applyTheme(theme) {
+      currentTheme = theme;
+      if (theme === 'light') {
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+        themeIconSun.style.display = 'block';
+        themeIconMoon.style.display = 'none';
+      } else {
+        document.body.classList.remove('theme-light');
+        document.body.classList.add('theme-dark');
+        themeIconSun.style.display = 'none';
+        themeIconMoon.style.display = 'block';
+      }
+    }
+
+    btnTheme.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(nextTheme);
+      if (window.pywebview) {
+        await window.pywebview.api.set_theme(nextTheme);
+      }
+    });
+
+    btnSettings.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (window.pywebview) {
+        const cfg = await window.pywebview.api.get_config();
+        settingTasksDir.value = cfg.tasks_dir || '';
+        settingMaxHeight.value = cfg.max_height || '';
+        settingsModal.classList.add('active');
+      }
+    });
+
+    btnBrowseFolder.addEventListener('click', async () => {
+      if (window.pywebview) {
+        const folder = await window.pywebview.api.select_tasks_directory();
+        if (folder) {
+          settingTasksDir.value = folder;
+        }
+      }
+    });
+
+    settingsBtnSave.addEventListener('click', async () => {
+      if (window.pywebview) {
+        await window.pywebview.api.save_settings({
+          tasks_dir: settingTasksDir.value,
+          max_height: settingMaxHeight.value,
+          theme: currentTheme
+        });
+        settingsModal.classList.remove('active');
+        await window.refreshTasks();
+      }
+    });
+
+    function closeSettings() {
+      settingsModal.classList.remove('active');
+    }
+    settingsBtnCancel.addEventListener('click', closeSettings);
+    settingsTopClose.addEventListener('click', closeSettings);
 
     collapsedHandle.addEventListener('mouseenter', () => {
       hoverTimeout = setTimeout(() => {
-        if (window.pywebview) {
-          window.pywebview.api.expand();
-        }
+        if (window.pywebview) window.pywebview.api.expand();
       }, 100);
     });
 
@@ -523,11 +772,14 @@
       clearTimeout(hoverTimeout);
     });
 
+    collapsedHandle.addEventListener('click', () => {
+      clearTimeout(hoverTimeout);
+      if (window.pywebview) window.pywebview.api.expand();
+    });
+
     document.body.addEventListener('mouseleave', () => {
-      if (!isPinned && !editorModal.classList.contains('active') && !isDragging) {
-        if (window.pywebview) {
-          window.pywebview.api.collapse(false);
-        }
+      if (!isPinned && !anyModalOpen() && !isDragging) {
+        if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
 
@@ -552,7 +804,8 @@
       isDragging = false;
     });
 
-    btnPin.addEventListener('click', async () => {
+    btnPin.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (window.pywebview) {
         isPinned = await window.pywebview.api.toggle_pin();
         btnPin.classList.toggle('active', isPinned);
@@ -560,7 +813,8 @@
     });
 
     filterTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
+      tab.addEventListener('click', (e) => {
+        e.stopPropagation();
         filterTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         currentFilter = tab.dataset.filter;
@@ -568,7 +822,8 @@
       });
     });
 
-    btnNew.addEventListener('click', async () => {
+    btnNew.addEventListener('click', async (e) => {
+      e.stopPropagation();
       await createNewTaskAction();
     });
 
@@ -595,7 +850,7 @@
       modalTaskTitle.textContent = task.title;
       taskBodyInput.value = task.body || '';
       editorModal.classList.add('active');
-      setTimeout(() => taskBodyInput.focus(), 50);
+      setTimeout(() => taskBodyInput.focus(), 60);
     }
 
     async function saveBodyEditor() {
@@ -614,11 +869,14 @@
 
     modalBtnSave.addEventListener('click', saveBodyEditor);
     modalBtnCancel.addEventListener('click', closeBodyEditor);
+    modalTopClose.addEventListener('click', closeBodyEditor);
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (editorModal.classList.contains('active')) {
           saveBodyEditor();
+        } else if (settingsModal.classList.contains('active')) {
+          closeSettings();
         } else if (!isPinned) {
           if (window.pywebview) window.pywebview.api.collapse(true);
         }
@@ -671,22 +929,39 @@
         titleInput.className = 'task-title-input';
         titleInput.value = task.title;
 
-        titleInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            titleInput.blur();
-          }
-        });
+        let saveDebounceTimer = null;
 
-        titleInput.addEventListener('blur', async () => {
+        async function commitTitleChange() {
           const val = titleInput.value.trim();
           if (val && val !== task.title) {
             const newId = await window.pywebview.api.update_task_title(task.id, val);
             if (newId) {
               task.id = newId;
               task.title = val;
+              card.dataset.id = newId;
             }
-          } else {
+          } else if (!val) {
             titleInput.value = task.title;
+          }
+        }
+
+        titleInput.addEventListener('input', () => {
+          clearTimeout(saveDebounceTimer);
+          saveDebounceTimer = setTimeout(() => {
+            commitTitleChange();
+          }, 600);
+        });
+
+        titleInput.addEventListener('blur', () => {
+          clearTimeout(saveDebounceTimer);
+          commitTitleChange();
+        });
+
+        titleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            clearTimeout(saveDebounceTimer);
+            commitTitleChange();
+            titleInput.blur();
           }
         });
 
@@ -694,6 +969,15 @@
 
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'task-actions';
+
+        const editBodyBtn = document.createElement('button');
+        editBodyBtn.className = 'btn-action btn-edit-desc';
+        editBodyBtn.title = "Редактировать описание задачи";
+        editBodyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
+        editBodyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openBodyEditor(task);
+        });
 
         const archiveBtn = document.createElement('button');
         archiveBtn.className = 'btn-action';
@@ -716,15 +1000,18 @@
         deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
         deleteBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          await window.pywebview.api.delete_task(task.id);
-          currentTasks = currentTasks.filter(t => t.id !== task.id);
-          renderTasks();
+          if (confirm(`Удалить задачу "${task.title}"?`)) {
+            await window.pywebview.api.delete_task(task.id);
+            currentTasks = currentTasks.filter(t => t.id !== task.id);
+            renderTasks();
+          }
         });
 
+        actionsDiv.appendChild(editBodyBtn);
         actionsDiv.appendChild(archiveBtn);
         actionsDiv.appendChild(deleteBtn);
 
-        card.addEventListener('dblclick', () => {
+        card.addEventListener('dblclick', (e) => {
           openBodyEditor(task);
         });
 
@@ -750,6 +1037,7 @@
       const cfg = await window.pywebview.api.get_config();
       isPinned = !!cfg.pinned;
       btnPin.classList.toggle('active', isPinned);
+      applyTheme(cfg.theme || 'dark');
       await window.refreshTasks();
     });
   </script>
