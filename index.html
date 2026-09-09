@@ -45,9 +45,7 @@
 
     :root {
       --handle-width: 36px;
-      --tab-height: 36px;
-      --drag-height: 20px;
-      --handle-total-height: 58px;
+      --handle-total-height: 100px;
     }
 
     * {
@@ -68,6 +66,10 @@
       transition: color 0.2s;
     }
 
+    body.collapsed {
+      background: var(--bg-secondary);
+    }
+
     body.collapsed #sidebar {
       display: none;
     }
@@ -81,72 +83,64 @@
       display: flex;
     }
 
-    /* Collapsed Stack: Main Tab + Dedicated Drag Handle Below */
+    /* Monolithic 100px Handle (36x100 px) - Matches 100% of Window Viewport */
     #collapsed-wrapper {
       display: flex;
       flex-direction: column;
-      width: var(--handle-width);
-      height: var(--handle-total-height);
-      gap: 2px;
-      padding: 0;
-      margin: 0;
-      align-items: stretch;
-      overflow: hidden;
-    }
-
-    /* 1. Main Square Tab (36x36 px) */
-    #collapsed-tab {
-      width: var(--handle-width);
-      height: var(--tab-height);
+      width: 100%;
+      height: 100%;
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       border-right: none;
       border-radius: 8px 0 0 8px;
+      box-shadow: -3px 0 12px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+
+    /* Top Section: Action / Open Tab */
+    #collapsed-tab {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: -3px 0 10px rgba(0,0,0,0.3);
       color: var(--accent);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
     }
     #collapsed-tab:hover {
       background: var(--accent);
       color: #ffffff;
-      transform: translateX(-2px);
     }
     #collapsed-tab svg {
       width: 18px;
       height: 18px;
     }
 
-    /* 2. Drag Handle Tab Below (36x20 px) - Hovering does NOT expand */
+    /* Subtle divider line between sections */
+    .handle-divider {
+      height: 1px;
+      width: 70%;
+      margin: 0 auto;
+      background: var(--border-color);
+    }
+
+    /* Bottom Section: Dedicated Vertical Drag Handle */
     #collapsed-drag-tab {
-      width: var(--handle-width);
-      height: var(--drag-height);
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-right: none;
-      border-radius: 6px 0 0 6px;
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: ns-resize;
-      box-shadow: -3px 0 10px rgba(0,0,0,0.25);
       color: var(--text-muted);
-      transition: all 0.15s;
-      flex-shrink: 0;
-      opacity: 0.85;
+      transition: background 0.15s, color 0.15s;
     }
     #collapsed-drag-tab:hover {
       background: var(--bg-card-hover);
       color: var(--accent);
-      opacity: 1;
     }
     #collapsed-drag-tab svg {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
     }
 
     /* Expanded Sidebar Layout */
@@ -676,8 +670,9 @@
 </head>
 <body class="collapsed theme-dark">
 
-  <!-- Collapsed Wrapper: Exact Height (58px) -->
+  <!-- Monolithic 100px Collapsed Handle (36x100 px) -->
   <div id="collapsed-wrapper">
+    <!-- Top Action / Open Area (hover or click expands) -->
     <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 11l3 3L22 4"></path>
@@ -685,11 +680,14 @@
       </svg>
     </div>
 
-    <!-- Drag Handle Tab: Hovering here does NOT open the sidebar. Dragging moves vertically. -->
+    <div class="handle-divider"></div>
+
+    <!-- Bottom Drag Handle Area (hover does not expand, dragging moves window) -->
     <div id="collapsed-drag-tab" title="Зажмите ЛКМ и потяните для перемещения по вертикали">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="8" y1="9" x2="16" y2="9"></line>
-        <line x1="8" y1="15" x2="16" y2="15"></line>
+        <line x1="8" y1="8" x2="16" y2="8"></line>
+        <line x1="8" y1="12" x2="16" y2="12"></line>
+        <line x1="8" y1="16" x2="16" y2="16"></line>
       </svg>
     </div>
   </div>
@@ -1092,7 +1090,7 @@
       }
     }
 
-    // Modal Editor Logic (only opened via explicit button)
+    // Modal Editor Logic
     function openBodyEditor(task) {
       editingTask = task;
       modalTaskTitleInput.value = task.title;
