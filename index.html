@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="collapsed">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -63,7 +63,15 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent;
+      background: transparent !important;
+    }
+
+    /* In collapsed mode, html is strictly clamped to handle dimensions */
+    html.collapsed {
+      width: var(--handle-width) !important;
+      height: var(--handle-total-height) !important;
+      overflow: hidden !important;
+      background: transparent !important;
     }
 
     body {
@@ -75,7 +83,7 @@
       transition: color 0.2s;
     }
 
-    /* In collapsed state, clamp body strictly to handle size */
+    /* In collapsed state, clamp body strictly to handle size with no background */
     body.collapsed {
       width: var(--handle-width) !important;
       height: var(--handle-total-height) !important;
@@ -107,6 +115,7 @@
       margin: 0;
       align-items: stretch;
       overflow: hidden;
+      background: transparent !important;
     }
 
     /* 1. Main Square Tab (36x36 px) */

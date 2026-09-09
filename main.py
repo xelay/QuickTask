@@ -3,7 +3,6 @@ import re
 import sys
 import json
 import time
-import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -59,27 +58,33 @@ def get_unique_filename(directory: Path, base_name: str, current_path: Optional[
     return target
 
 
-def set_win32_window_bounds(x: int, y: int, width: int, height: int):
+def apply_native_winforms_fixes(width: int, height: int, x: int, y: int):
     """
-    Directly bypasses WinForms Form MinimumWindowSize (which clamps to 200x100)
-    by calling Windows Win32 MoveWindow API.
+    On Windows (WinForms backend), Form.MinimumSize defaults to (200, 100),
+    which clamps any resize below 200x100.
+    We reset Form.MinimumSize to (0, 0), set Form.Size, and configure WebView2
+    DefaultBackgroundColor = Color.Transparent to eliminate background panels.
     """
-    if sys.platform == "win32" and CURRENT_WINDOW:
+    if sys.platform == "win32" and CURRENT_WINDOW and hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
         try:
-            hwnd = None
-            if hasattr(CURRENT_WINDOW, "native") and CURRENT_WINDOW.native:
-                hwnd = getattr(CURRENT_WINDOW.native, "Handle", None)
-                if hwnd and hasattr(hwnd, "ToInt32"):
-                    hwnd = hwnd.ToInt32()
-            if not hwnd:
-                hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
-            if hwnd:
-                ctypes.windll.user32.MoveWindow(hwnd, int(x), int(y), int(width), int(height), True)
-                return
-        except Exception as e:
-            print(f"Win32 MoveWindow error: {e}", file=sys.stderr)
-    
-    # Fallback to pywebview API
+            form = CURRENT_WINDOW.native
+            # System.Drawing.Size
+            from System.Drawing import Size, Point, Color  # type: ignore
+            form.MinimumSize = Size(0, 0)
+            form.Location = Point(int(x), int(y))
+            form.Size = Size(int(width), int(height))
+            form.ClientSize = Size(int(width), int(height))
+
+            # Configure WebView2 background transparency
+            if hasattr(form, "ActiveControl") and form.ActiveControl:
+                webview_ctrl = form.ActiveControl
+                if hasattr(webview_ctrl, "DefaultBackgroundColor"):
+                    webview_ctrl.DefaultBackgroundColor = Color.Transparent
+            return
+        except Exception:
+            pass
+
+    # Standard fallback
     if CURRENT_WINDOW:
         CURRENT_WINDOW.resize(width, height)
         CURRENT_WINDOW.move(x, y)
@@ -215,9 +220,9 @@ class QuickTaskAPI:
             
         x = SCREEN_WIDTH - width
         
-        set_win32_window_bounds(x, y, width, target_height)
+        CURRENT_WINDOW.evaluate_js("document.documentElement.classList.remove('collapsed'); document.documentElement.classList.add('expanded'); document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
+        apply_native_winforms_fixes(width, target_height, x, y)
         self.is_expanded = True
-        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('collapsed'); document.body.classList.add('expanded');")
 
     def collapse(self, force: bool = False):
         if not CURRENT_WINDOW:
@@ -230,9 +235,9 @@ class QuickTaskAPI:
         x = SCREEN_WIDTH - h_width
         y = int(self.config.get("window_y", 120))
 
-        set_win32_window_bounds(x, y, h_width, total_h)
+        CURRENT_WINDOW.evaluate_js("document.documentElement.classList.remove('expanded'); document.documentElement.classList.add('collapsed'); document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
+        apply_native_winforms_fixes(h_width, total_h, x, y)
         self.is_expanded = False
-        CURRENT_WINDOW.evaluate_js("document.body.classList.remove('expanded'); document.body.classList.add('collapsed');")
 
     def toggle_pin(self) -> bool:
         new_state = not self.config.get("pinned", False)
@@ -295,7 +300,7 @@ class QuickTaskAPI:
         self.save_config()
         if not self.is_expanded and CURRENT_WINDOW:
             x = SCREEN_WIDTH - int(self.config.get("handle_width", 36))
-            set_win32_window_bounds(x, new_y, int(self.config.get("handle_width", 36)), total_h)
+            apply_native_winforms_fixes(int(self.config.get("handle_width", 36)), total_h, x, new_y)
         return new_y
 
     def save_tasks_order(self, order: List[str]) -> bool:
@@ -573,8 +578,8 @@ def main():
                 SCREEN_HEIGHT = primary.height
         except Exception:
             pass
-        # Force initial Win32 sizing to override WinForms 200x100 clamp
-        set_win32_window_bounds(SCREEN_WIDTH - h_width, initial_y, h_width, total_h)
+        # Clear Form.MinimumSize and configure WebView2 transparency
+        apply_native_winforms_fixes(h_width, total_h, SCREEN_WIDTH - h_width, initial_y)
         api.start_watcher()
         api.register_hotkey()
 
