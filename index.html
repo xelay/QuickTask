@@ -54,7 +54,7 @@
       padding: 0;
       user-select: none;
       -webkit-user-select: none;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     }
 
     html, body {
@@ -757,7 +757,7 @@
   <!-- Monolithic 100px Collapsed Handle (36x100 px at x=0 of window) -->
   <div id="collapsed-wrapper">
     <!-- Top Action / Open Area (Bookmark icon) -->
-    <div id="collapsed-tab" title="QuickTask (Кликните или наведите)">
+    <div id="collapsed-tab" data-i18n-title="handle_tab_title" title="QuickTask (Click or hover)">
       <svg viewBox="0 0 24 24" width="24" height="24">
         <path d="M20.137,24a2.8,2.8,0,0,1-1.987-.835L12,17.051,5.85,23.169a2.8,2.8,0,0,1-3.095.609A2.8,2.8,0,0,1,1,21.154V5A5,5,0,0,1,6,0H18a5,5,0,0,1,5,5V21.154a2.8,2.8,0,0,1-1.751,2.624A2.867,2.867,0,0,1,20.137,24ZM6,2A3,3,0,0,0,3,5V21.154a.843.843,0,0,0,1.437.6h0L11.3,14.933a1,1,0,0,1,1.41,0l6.855,6.819a.843.843,0,0,0,1.437-.6V5a3,3,0,0,0-3-3Z"/>
       </svg>
@@ -766,7 +766,7 @@
     <div class="handle-divider"></div>
 
     <!-- Bottom Drag Handle Area (Burger icon) -->
-    <div id="collapsed-drag-tab" title="Зажмите ЛКМ и потяните для перемещения по вертикали">
+    <div id="collapsed-drag-tab" data-i18n-title="handle_drag_title" title="Hold the left mouse button and drag to move vertically">
       <svg viewBox="0 0 512 512" width="512" height="512">
         <path d="M480,224H32c-17.673,0-32,14.327-32,32s14.327,32,32,32h448c17.673,0,32-14.327,32-32S497.673,224,480,224z"/>
         <path d="M32,138.667h448c17.673,0,32-14.327,32-32s-14.327-32-32-32H32c-17.673,0-32,14.327-32,32S14.327,138.667,32,138.667z"/>
@@ -786,11 +786,11 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>New</span>
+            <span data-i18n="btn_new_task">New</span>
           </button>
 
           <div class="header-actions">
-            <button id="btn-theme" class="btn-icon" title="Переключить тему (Светлая / Темная)">
+            <button id="btn-theme" class="btn-icon" data-i18n-title="theme_toggle_title" title="Toggle theme (Light / Dark)">
               <svg id="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
                 <circle cx="12" cy="12" r="5"></circle>
                 <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -807,14 +807,14 @@
               </svg>
             </button>
 
-            <button id="btn-settings" class="btn-icon" title="Настройки">
+            <button id="btn-settings" class="btn-icon" data-i18n-title="settings_title" title="Settings">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
             </button>
 
-            <button id="btn-pin" class="btn-icon" title="Закрепить сайдбар">
+            <button id="btn-pin" class="btn-icon" data-i18n-title="pin_title" title="Pin sidebar">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2v8"></path>
                 <path d="m4.93 10.93 4.24-4.24"></path>
@@ -825,7 +825,7 @@
               </svg>
             </button>
 
-            <button id="btn-close-app" class="btn-icon btn-close-app" title="Закрыть приложение полностью">
+            <button id="btn-close-app" class="btn-icon btn-close-app" data-i18n-title="close_app_title" title="Close the application completely">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -835,10 +835,10 @@
         </div>
 
         <div class="filter-tabs">
-          <div class="filter-tab active" data-filter="active">Активные</div>
-          <div class="filter-tab" data-filter="done">Выполненные</div>
-          <div class="filter-tab" data-filter="archived">Архив</div>
-          <div class="filter-tab" data-filter="all">Все</div>
+          <div class="filter-tab active" data-filter="active" data-i18n="filter_active">Active</div>
+          <div class="filter-tab" data-filter="done" data-i18n="filter_done">Done</div>
+          <div class="filter-tab" data-filter="archived" data-i18n="filter_archived">Archived</div>
+          <div class="filter-tab" data-filter="all" data-i18n="filter_all">All</div>
         </div>
 
         <!-- Live Substring Search Input -->
@@ -849,8 +849,8 @@
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
           </div>
-          <input type="text" id="search-input" class="search-input" placeholder="Поиск по названию и телу...">
-          <button id="search-clear-btn" class="search-clear-btn" title="Очистить поиск">
+          <input type="text" id="search-input" class="search-input" data-i18n-placeholder="search_placeholder" placeholder="Search by title and body...">
+          <button id="search-clear-btn" class="search-clear-btn" data-i18n-title="search_clear_title" title="Clear search">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -867,30 +867,30 @@
   <div id="editor-modal" class="app-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <span>Редактор задачи</span>
-        <button id="modal-top-close" class="btn-action" title="Закрыть (Esc)">
+        <span data-i18n="editor_title">Task Editor</span>
+        <button id="modal-top-close" class="btn-action" data-i18n-title="close_esc_title" title="Close (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="modal-body">
         <div class="modal-field-group">
-          <label class="modal-field-label">Название задачи</label>
-          <input type="text" id="modal-task-title-input" placeholder="Title задачи...">
+          <label class="modal-field-label" data-i18n="editor_task_title_label">Task title</label>
+          <input type="text" id="modal-task-title-input" data-i18n-placeholder="editor_task_title_placeholder" placeholder="Task title...">
         </div>
 
         <div class="modal-field-group" style="flex:1;">
-          <label class="modal-field-label">Описание задачи (Markdown)</label>
-          <textarea id="task-body-input" placeholder="Введите подробное описание задачи..."></textarea>
+          <label class="modal-field-label" data-i18n="editor_body_label">Task description (Markdown)</label>
+          <textarea id="task-body-input" data-i18n-placeholder="editor_body_placeholder" placeholder="Enter a detailed task description..."></textarea>
         </div>
 
         <div class="modal-field-group">
-          <label class="modal-field-label">Метаданные (YAML Frontmatter)</label>
+          <label class="modal-field-label" data-i18n="editor_metadata_label">Metadata (YAML Frontmatter)</label>
           <pre id="modal-frontmatter-view" class="frontmatter-viewer"></pre>
         </div>
       </div>
       <div class="modal-footer">
-        <button id="modal-btn-cancel" class="btn-secondary">Отмена</button>
-        <button id="modal-btn-save" class="btn-primary">Сохранить</button>
+        <button id="modal-btn-cancel" class="btn-secondary" data-i18n="btn_cancel">Cancel</button>
+        <button id="modal-btn-save" class="btn-primary" data-i18n="btn_save">Save</button>
       </div>
     </div>
   </div>
@@ -899,30 +899,39 @@
   <div id="settings-modal" class="app-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <span>Настройки QuickTask</span>
-        <button id="settings-top-close" class="btn-action" title="Закрыть">
+        <span data-i18n="settings_heading">QuickTask Settings</span>
+        <button id="settings-top-close" class="btn-action" data-i18n-title="close_title" title="Close">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="modal-body">
         <div class="settings-group">
-          <label class="settings-label">Папка хранения задач (.md)</label>
-          <div class="folder-picker-box">
-            <input type="text" id="setting-tasks-dir" class="settings-input" readonly>
-            <button id="btn-browse-folder" class="btn-secondary">Обзор...</button>
-          </div>
-          <span class="settings-hint">Путь к каталогу с вашими Markdown-файлами задач.</span>
+          <label class="settings-label" data-i18n="settings_language_label">Interface language</label>
+          <select id="setting-language" class="settings-input">
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+            <option value="zh">中文</option>
+          </select>
         </div>
 
         <div class="settings-group">
-          <label class="settings-label">Высота сайдбара (пиксели)</label>
-          <input type="number" id="setting-max-height" class="settings-input" placeholder="Оставьте пустым для полной высоты экрана" min="300" max="2160">
-          <span class="settings-hint">Если задана фиксированная высота (например 700), сайдбар центрируется вертикально на экране с равными отступами сверху и снизу.</span>
+          <label class="settings-label" data-i18n="settings_tasks_dir_label">Tasks storage folder (.md)</label>
+          <div class="folder-picker-box">
+            <input type="text" id="setting-tasks-dir" class="settings-input" readonly>
+            <button id="btn-browse-folder" class="btn-secondary" data-i18n="settings_browse">Browse...</button>
+          </div>
+          <span class="settings-hint" data-i18n="settings_tasks_dir_hint">Path to the directory containing your Markdown task files.</span>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label" data-i18n="settings_max_height_label">Sidebar height (pixels)</label>
+          <input type="number" id="setting-max-height" class="settings-input" data-i18n-placeholder="settings_max_height_placeholder" placeholder="Leave empty for full screen height" min="300" max="2160">
+          <span class="settings-hint" data-i18n="settings_max_height_hint">If a fixed height is set (e.g. 700), the sidebar is centered vertically on the screen with equal top and bottom margins.</span>
         </div>
       </div>
       <div class="modal-footer">
-        <button id="settings-btn-cancel" class="btn-secondary">Отмена</button>
-        <button id="settings-btn-save" class="btn-primary">Применить</button>
+        <button id="settings-btn-cancel" class="btn-secondary" data-i18n="btn_cancel">Cancel</button>
+        <button id="settings-btn-save" class="btn-primary" data-i18n="btn_apply">Apply</button>
       </div>
     </div>
   </div>
@@ -932,7 +941,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <span id="confirm-title">Подтверждение</span>
-        <button id="confirm-top-close" class="btn-action" title="Закрыть (Esc)">
+        <button id="confirm-top-close" class="btn-action" data-i18n-title="close_esc_title" title="Close (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -940,7 +949,7 @@
         <div id="confirm-message">Вы уверены?</div>
       </div>
       <div class="modal-footer">
-        <button id="confirm-btn-cancel" class="btn-secondary">Отмена</button>
+        <button id="confirm-btn-cancel" class="btn-secondary" data-i18n="btn_cancel">Cancel</button>
         <button id="confirm-btn-ok" class="btn-danger">Да</button>
       </div>
     </div>
@@ -959,6 +968,7 @@
     let isResizingSidebar = false;
     let resizeStartX = 0;
     let currentTheme = 'dark';
+    let currentLanguage = 'en';
     let draggedCard = null;
     let confirmResolver = null;
 
@@ -991,6 +1001,7 @@
     const settingsModal = document.getElementById('settings-modal');
     const settingTasksDir = document.getElementById('setting-tasks-dir');
     const settingMaxHeight = document.getElementById('setting-max-height');
+    const settingLanguage = document.getElementById('setting-language');
     const btnBrowseFolder = document.getElementById('btn-browse-folder');
     const settingsBtnSave = document.getElementById('settings-btn-save');
     const settingsBtnCancel = document.getElementById('settings-btn-cancel');
@@ -1049,7 +1060,9 @@
       }
     });
 
-    function showCustomConfirm(message, title = "Подтверждение", confirmText = "Да", confirmClass = "btn-danger") {
+    function showCustomConfirm(message, title, confirmText, confirmClass = "btn-danger") {
+      title = title || t('confirm_default_title');
+      confirmText = confirmText || t('confirm_default_yes');
       return new Promise((resolve) => {
         confirmTitle.textContent = title;
         confirmMessage.textContent = message;
@@ -1074,11 +1087,193 @@
 
     btnCloseApp.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const confirmed = await showCustomConfirm('Вы уверены, что хотите полностью закрыть QuickTask?', 'Закрыть приложение', 'Закрыть');
+      const confirmed = await showCustomConfirm(t('confirm_close_app_message'), t('confirm_close_app_title'), t('close_title'));
       if (confirmed && window.pywebview) {
         window.pywebview.api.close_app();
       }
     });
+
+    const I18N = {
+      en: {
+        handle_tab_title: "QuickTask (Click or hover)",
+        handle_drag_title: "Hold the left mouse button and drag to move vertically",
+        btn_new_task: "New",
+        theme_toggle_title: "Toggle theme (Light / Dark)",
+        settings_title: "Settings",
+        pin_title: "Pin sidebar",
+        close_app_title: "Close the application completely",
+        filter_active: "Active",
+        filter_done: "Done",
+        filter_archived: "Archived",
+        filter_all: "All",
+        search_placeholder: "Search by title and body...",
+        search_clear_title: "Clear search",
+        editor_title: "Task Editor",
+        close_esc_title: "Close (Esc)",
+        editor_task_title_label: "Task title",
+        editor_task_title_placeholder: "Task title...",
+        editor_body_label: "Task description (Markdown)",
+        editor_body_placeholder: "Enter a detailed task description...",
+        editor_metadata_label: "Metadata (YAML Frontmatter)",
+        btn_cancel: "Cancel",
+        btn_save: "Save",
+        settings_heading: "QuickTask Settings",
+        close_title: "Close",
+        settings_language_label: "Interface language",
+        settings_tasks_dir_label: "Tasks storage folder (.md)",
+        settings_browse: "Browse...",
+        settings_tasks_dir_hint: "Path to the directory containing your Markdown task files.",
+        settings_max_height_label: "Sidebar height (pixels)",
+        settings_max_height_placeholder: "Leave empty for full screen height",
+        settings_max_height_hint: "If a fixed height is set (e.g. 700), the sidebar is centered vertically on the screen with equal top and bottom margins.",
+        btn_apply: "Apply",
+        confirm_default_title: "Confirmation",
+        confirm_default_yes: "Yes",
+        no_tasks_search: "No results for your search",
+        no_tasks: "No tasks found",
+        task_drag_hint: "Drag to reorder tasks",
+        task_urgent_on: "Critical task (high priority)",
+        task_urgent_off: "Normal task",
+        task_edit_desc: "Edit task description",
+        task_restore: "Restore from archive",
+        task_archive: "Archive",
+        task_delete_forever: "Delete permanently",
+        confirm_close_app_message: "Are you sure you want to completely close QuickTask?",
+        confirm_close_app_title: "Close application",
+        confirm_delete_task_message: 'Delete task "{title}" permanently?',
+        confirm_delete_task_title: "Delete task",
+        confirm_delete_task_button: "Delete",
+      },
+      ru: {
+        handle_tab_title: "QuickTask (Кликните или наведите)",
+        handle_drag_title: "Зажмите ЛКМ и потяните для перемещения по вертикали",
+        btn_new_task: "Новая",
+        theme_toggle_title: "Переключить тему (Светлая / Темная)",
+        settings_title: "Настройки",
+        pin_title: "Закрепить сайдбар",
+        close_app_title: "Закрыть приложение полностью",
+        filter_active: "Активные",
+        filter_done: "Выполненные",
+        filter_archived: "Архив",
+        filter_all: "Все",
+        search_placeholder: "Поиск по названию и телу...",
+        search_clear_title: "Очистить поиск",
+        editor_title: "Редактор задачи",
+        close_esc_title: "Закрыть (Esc)",
+        editor_task_title_label: "Название задачи",
+        editor_task_title_placeholder: "Название задачи...",
+        editor_body_label: "Описание задачи (Markdown)",
+        editor_body_placeholder: "Введите подробное описание задачи...",
+        editor_metadata_label: "Метаданные (YAML Frontmatter)",
+        btn_cancel: "Отмена",
+        btn_save: "Сохранить",
+        settings_heading: "Настройки QuickTask",
+        close_title: "Закрыть",
+        settings_language_label: "Язык интерфейса",
+        settings_tasks_dir_label: "Папка хранения задач (.md)",
+        settings_browse: "Обзор...",
+        settings_tasks_dir_hint: "Путь к каталогу с вашими Markdown-файлами задач.",
+        settings_max_height_label: "Высота сайдбара (пиксели)",
+        settings_max_height_placeholder: "Оставьте пустым для полной высоты экрана",
+        settings_max_height_hint: "Если задана фиксированная высота (например 700), сайдбар центрируется вертикально на экране с равными отступами сверху и снизу.",
+        btn_apply: "Применить",
+        confirm_default_title: "Подтверждение",
+        confirm_default_yes: "Да",
+        no_tasks_search: "Ничего не найдено по запросу",
+        no_tasks: "Задач не найдено",
+        task_drag_hint: "Потяните для изменения порядка задач",
+        task_urgent_on: "Критическая задача (высокий приоритет)",
+        task_urgent_off: "Обычная задача",
+        task_edit_desc: "Редактировать описание задачи",
+        task_restore: "Восстановить из архива",
+        task_archive: "Архивировать",
+        task_delete_forever: "Удалить навсегда",
+        confirm_close_app_message: "Вы уверены, что хотите полностью закрыть QuickTask?",
+        confirm_close_app_title: "Закрыть приложение",
+        confirm_delete_task_message: 'Удалить задачу "{title}" навсегда?',
+        confirm_delete_task_title: "Удаление задачи",
+        confirm_delete_task_button: "Удалить",
+      },
+      zh: {
+        handle_tab_title: "QuickTask(点击或悬停)",
+        handle_drag_title: "按住鼠标左键拖动可垂直移动",
+        btn_new_task: "新建",
+        theme_toggle_title: "切换主题(浅色/深色)",
+        settings_title: "设置",
+        pin_title: "固定侧边栏",
+        close_app_title: "完全关闭应用程序",
+        filter_active: "进行中",
+        filter_done: "已完成",
+        filter_archived: "已归档",
+        filter_all: "全部",
+        search_placeholder: "按标题和内容搜索…",
+        search_clear_title: "清除搜索",
+        editor_title: "任务编辑器",
+        close_esc_title: "关闭 (Esc)",
+        editor_task_title_label: "任务标题",
+        editor_task_title_placeholder: "任务标题…",
+        editor_body_label: "任务描述(Markdown)",
+        editor_body_placeholder: "输入详细的任务描述…",
+        editor_metadata_label: "元数据(YAML Frontmatter)",
+        btn_cancel: "取消",
+        btn_save: "保存",
+        settings_heading: "QuickTask 设置",
+        close_title: "关闭",
+        settings_language_label: "界面语言",
+        settings_tasks_dir_label: "任务存储文件夹(.md)",
+        settings_browse: "浏览…",
+        settings_tasks_dir_hint: "存放 Markdown 任务文件的目录路径。",
+        settings_max_height_label: "侧边栏高度(像素)",
+        settings_max_height_placeholder: "留空则使用整个屏幕高度",
+        settings_max_height_hint: "如果设置了固定高度(例如 700),侧边栏会在屏幕上垂直居中,上下边距相等。",
+        btn_apply: "应用",
+        confirm_default_title: "确认",
+        confirm_default_yes: "是",
+        no_tasks_search: "未找到匹配的搜索结果",
+        no_tasks: "未找到任务",
+        task_drag_hint: "拖动以调整任务顺序",
+        task_urgent_on: "紧急任务(高优先级)",
+        task_urgent_off: "普通任务",
+        task_edit_desc: "编辑任务描述",
+        task_restore: "从归档中恢复",
+        task_archive: "归档",
+        task_delete_forever: "永久删除",
+        confirm_close_app_message: "确定要完全关闭 QuickTask 吗?",
+        confirm_close_app_title: "关闭应用程序",
+        confirm_delete_task_message: '确定要永久删除任务"{title}"吗?',
+        confirm_delete_task_title: "删除任务",
+        confirm_delete_task_button: "删除",
+      },
+    };
+
+    function t(key, vars) {
+      const dict = I18N[currentLanguage] || I18N.en;
+      let str = (key in dict) ? dict[key] : (I18N.en[key] || key);
+      if (vars) {
+        for (const k in vars) {
+          str = str.replace(`{${k}}`, vars[k]);
+        }
+      }
+      return str;
+    }
+
+    function applyLanguage(lang) {
+      currentLanguage = I18N[lang] ? lang : 'en';
+      document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : currentLanguage;
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.getAttribute('data-i18n'));
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.getAttribute('data-i18n-title'));
+      });
+
+      if (settingLanguage) settingLanguage.value = currentLanguage;
+      renderTasks();
+    }
 
     function applyTheme(theme) {
       currentTheme = theme;
@@ -1104,12 +1299,21 @@
       }
     });
 
+    settingLanguage.addEventListener('change', async () => {
+      const lang = settingLanguage.value;
+      applyLanguage(lang);
+      if (window.pywebview) {
+        await window.pywebview.api.set_language(lang);
+      }
+    });
+
     btnSettings.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (window.pywebview) {
         const cfg = await window.pywebview.api.get_config();
         settingTasksDir.value = cfg.tasks_dir || '';
         settingMaxHeight.value = cfg.max_height || '';
+        settingLanguage.value = cfg.language || 'en';
         settingsModal.classList.add('active');
       }
     });
@@ -1128,7 +1332,8 @@
         await window.pywebview.api.save_settings({
           tasks_dir: settingTasksDir.value,
           max_height: settingMaxHeight.value,
-          theme: currentTheme
+          theme: currentTheme,
+          language: currentLanguage
         });
         settingsModal.classList.remove('active');
         await window.refreshTasks();
@@ -1356,7 +1561,7 @@
               <line x1="9" y1="9" x2="15" y2="9"></line>
               <line x1="9" y1="13" x2="13" y2="13"></line>
             </svg>
-            <span>${searchQuery ? 'Ничего не найдено по запросу' : 'Задач не найдено'}</span>
+            <span>${searchQuery ? t('no_tasks_search') : t('no_tasks')}</span>
           </div>
         `;
         return;
@@ -1370,7 +1575,7 @@
 
         const dragGrip = document.createElement('div');
         dragGrip.className = 'task-drag-grip';
-        dragGrip.title = "Потяните для изменения порядка задач";
+        dragGrip.title = t('task_drag_hint');
         dragGrip.innerHTML = `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <circle cx="8" cy="6" r="1.5" fill="currentColor"></circle>
@@ -1432,7 +1637,7 @@
 
         const flagBtn = document.createElement('button');
         flagBtn.className = `btn-flag ${task.urgent ? 'active' : ''}`;
-        flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
+        flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
         flagBtn.innerHTML = `
           <svg viewBox="0 0 24 24" fill="${task.urgent ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
@@ -1446,7 +1651,7 @@
           task.urgent = targetUrgent;
           flagBtn.classList.toggle('active', task.urgent);
           flagBtn.querySelector('svg').setAttribute('fill', task.urgent ? 'currentColor' : 'none');
-          flagBtn.title = task.urgent ? "Критическая задача (высокий приоритет)" : "Обычная задача";
+          flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
         });
 
         const titleInput = document.createElement('input');
@@ -1485,7 +1690,7 @@
 
         const editBodyBtn = document.createElement('button');
         editBodyBtn.className = 'btn-action btn-edit-desc';
-        editBodyBtn.title = "Редактировать описание задачи";
+        editBodyBtn.title = t('task_edit_desc');
         editBodyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
         editBodyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1494,7 +1699,7 @@
 
         const archiveBtn = document.createElement('button');
         archiveBtn.className = 'btn-action';
-        archiveBtn.title = task.archived ? "Восстановить из архива" : "Архивировать";
+        archiveBtn.title = task.archived ? t('task_restore') : t('task_archive');
         archiveBtn.innerHTML = task.archived
           ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
           : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
@@ -1509,11 +1714,11 @@
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-action btn-delete';
-        deleteBtn.title = "Удалить навсегда";
+        deleteBtn.title = t('task_delete_forever');
         deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
         deleteBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          const confirmed = await showCustomConfirm(`Удалить задачу "${task.title}" навсегда?`, 'Удаление задачи', 'Удалить');
+          const confirmed = await showCustomConfirm(t('confirm_delete_task_message', {title: task.title}), t('confirm_delete_task_title'), t('confirm_delete_task_button'));
           if (confirmed) {
             await window.pywebview.api.delete_task(task.id);
             currentTasks = currentTasks.filter(t => t.id !== task.id);
@@ -1554,6 +1759,7 @@
       isPinned = !!cfg.pinned;
       btnPin.classList.toggle('active', isPinned);
       applyTheme(cfg.theme || 'dark');
+      applyLanguage(cfg.language || 'en');
       await window.refreshTasks(true);
     });
   </script>

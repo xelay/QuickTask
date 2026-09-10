@@ -34,8 +34,11 @@ DEFAULT_CONFIG = {
     "pinned": False,
     "max_height": None,
     "theme": "dark",
+    "language": "en",
     "tasks_dir": str(DEFAULT_TASKS_DIR)
 }
+
+SUPPORTED_LANGUAGES = ("en", "ru", "zh")
 
 # Bounds for interactively resizing the expanded sidebar by dragging its
 # left edge (QuickTaskAPI.resize_sidebar). Intentionally not persisted to
@@ -320,6 +323,11 @@ class QuickTaskAPI:
         self.save_config()
         return self.config["theme"]
 
+    def set_language(self, lang_code: str) -> str:
+        self.config["language"] = lang_code if lang_code in SUPPORTED_LANGUAGES else "en"
+        self.save_config()
+        return self.config["language"]
+
     def save_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
         if "max_height" in settings:
             val = settings["max_height"]
@@ -334,6 +342,9 @@ class QuickTaskAPI:
 
         if "theme" in settings:
             self.config["theme"] = settings["theme"]
+
+        if "language" in settings and settings["language"] in SUPPORTED_LANGUAGES:
+            self.config["language"] = settings["language"]
 
         self.save_config()
         if self.is_expanded:
