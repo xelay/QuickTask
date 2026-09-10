@@ -1,0 +1,4 @@
+pywebview==6.2.1
+python-frontmatter==1.3.0
+watchdog==6.0.0
+keyboard==0.13.5

@@ -8,7 +8,7 @@
 
 ## Возможности и архитектура
 
-- **Невесомый стек**: Не требует компиляторов C++, Visual Studio Build Tools или тяжелых фреймворков вроде .NET.
+- **Невесомый стек**: Не требует компиляторов C++ или Visual Studio Build Tools. Под капотом используется системный компонент WebView2 (входит в состав Windows 10/11), поэтому вручную ставить .NET или браузерный движок не нужно.
 - **Хранение в Markdown + YAML**: Все задачи сохраняются как `.md` файлы в настраиваемой папке (по умолчанию `~/Documents/QuickTasks/`). Каждая задача содержит YAML Frontmatter (`done`, `archived`, `created_at`, `updated_at`).
 - **Синхронизация через Watchdog**: Реактивное отслеживание любых изменений файлов извне (Obsidian, VS Code, текстовые редакторы).
 - **Сайдбар с автоскрытием**:
@@ -46,8 +46,9 @@ venv\Scripts\activate
 
 ### 3. Установка зависимостей
 ```cmd
-pip install pywebview python-frontmatter watchdog keyboard
+pip install -r requirements.txt
 ```
+*(или вручную: `pip install pywebview python-frontmatter watchdog keyboard`)*
 
 ### 4. Запуск приложения
 ```cmd
@@ -70,8 +71,10 @@ venv\Scripts\pip.exe install pyinstaller
 ### 2. Сборка приложения (Рекомендуемый режим `--onedir`)
 Режим папки обеспечивает мгновенный холодный запуск без распаковки во временный каталог:
 ```cmd
-venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.html;." main.py
+venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" main.py
 ```
+
+> Флаг `--add-data "vendor;vendor"` обязателен: в `index.html` подключён редактор CodeMirror по относительному пути (`vendor/codemirror/...`). Без этого флага в собранном `.exe` не загрузится редактор описания задачи.
 
 - Готовый исполняемый файл и зависимости будут созданы в папке `dist\QuickTask\`.
 - Запуск: `dist\QuickTask\QuickTask.exe`.
@@ -79,7 +82,7 @@ venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.ht
 ### 3. Сборка в единый файл (`--onefile`)
 Если требуется переносить программу одним файлом:
 ```cmd
-venv\Scripts\pyinstaller.exe --noconsole --onefile --name "QuickTask" --add-data "index.html;." main.py
+venv\Scripts\pyinstaller.exe --noconsole --onefile --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" main.py
 ```
 Файл будет создан по пути `dist\QuickTask.exe`.
 
