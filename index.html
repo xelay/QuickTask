@@ -1660,9 +1660,16 @@
       taskList.innerHTML = '';
 
       const filtered = currentTasks.filter(task => {
-        if (currentFilter === 'active') return !task.done && !task.archived;
-        if (currentFilter === 'done') return task.done && !task.archived;
-        if (currentFilter === 'archived') return task.archived;
+        if (currentFilter === 'active' && (task.done || task.archived)) return false;
+        if (currentFilter === 'done' && (!task.done || task.archived)) return false;
+        if (currentFilter === 'archived' && !task.archived) return false;
+
+        if (searchQuery) {
+          const inTitle = (task.title || '').toLowerCase().includes(searchQuery);
+          const inBody = (task.body || '').toLowerCase().includes(searchQuery);
+          if (!inTitle && !inBody) return false;
+        }
+
         return true;
       });
 
