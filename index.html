@@ -187,7 +187,11 @@
       height: 100%;
       cursor: ew-resize;
       background: transparent;
-      z-index: 20;
+      /* Must stay above .app-modal (z-index: 100) so the drag strip is
+         still clickable while any modal (editor/settings/confirm) is
+         open -- #sidebar has no z-index of its own, so this compares
+         directly against modal z-indexes in the same stacking context. */
+      z-index: 150;
     }
 
     #sidebar-content {
