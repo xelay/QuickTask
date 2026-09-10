@@ -5,6 +5,7 @@ import json
 import time
 import threading
 import ctypes
+import subprocess
 from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,11 @@ DEFAULT_CONFIG = {
     "max_height": None,
     "theme": "dark",
     "language": "en",
-    "tasks_dir": str(DEFAULT_TASKS_DIR)
+    "tasks_dir": str(DEFAULT_TASKS_DIR),
+    # Path to an external editor executable. Empty string means:
+    # open the task's .md file with whatever application Windows has
+    # associated with the .md extension (see open_external_editor()).
+    "external_editor": ""
 }
 
 SUPPORTED_LANGUAGES = ("en", "ru", "zh")
@@ -346,6 +351,9 @@ class QuickTaskAPI:
         if "language" in settings and settings["language"] in SUPPORTED_LANGUAGES:
             self.config["language"] = settings["language"]
 
+        if "external_editor" in settings:
+            self.config["external_editor"] = str(settings["external_editor"] or "").strip()
+
         self.save_config()
         if self.is_expanded:
             self.expand()
@@ -358,6 +366,17 @@ class QuickTaskAPI:
         if folder and len(folder) > 0:
             chosen = folder[0]
             return str(chosen)
+        return None
+
+    def select_external_editor_path(self) -> Optional[str]:
+        if not CURRENT_WINDOW:
+            return None
+        result = CURRENT_WINDOW.create_file_dialog(
+            webview.OPEN_DIALOG,
+            file_types=("Executable files (*.exe)", "All files (*.*)"),
+        )
+        if result and len(result) > 0:
+            return str(result[0])
         return None
 
     def close_app(self):
@@ -642,6 +661,42 @@ class QuickTaskAPI:
         except Exception as e:
             print(f"Error updating body for {task_id}: {e}", file=sys.stderr)
             return False
+
+    def open_external_editor(self, task_id: str) -> Dict[str, Any]:
+        """
+        Open the task's underlying .md file in an external editor.
+
+        Uses config["external_editor"] (a path to an editor executable,
+        set in Settings) when configured; otherwise falls back to
+        os.startfile(), which opens the file with whatever application
+        Windows has associated with the .md extension -- the same as
+        double-clicking the file in Explorer.
+        """
+        file_path = self.tasks_dir / task_id
+        if not file_path.exists():
+            return {"success": False, "error": "file_not_found"}
+
+        editor_path = str(self.config.get("external_editor") or "").strip()
+
+        if editor_path:
+            try:
+                subprocess.Popen([editor_path, str(file_path)])
+                return {"success": True}
+            except Exception as e:
+                print(f"Failed to launch configured external editor '{editor_path}': {e}", file=sys.stderr)
+                # Fall through to the system default below.
+
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(file_path))
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(file_path)])
+            else:
+                subprocess.Popen(["xdg-open", str(file_path)])
+            return {"success": True}
+        except Exception as e:
+            print(f"Failed to open external editor for {file_path}: {e}", file=sys.stderr)
+            return {"success": False, "error": str(e)}
 
     def delete_task(self, task_id: str) -> bool:
         file_path = self.tasks_dir / task_id

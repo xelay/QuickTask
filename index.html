@@ -790,6 +790,15 @@
       gap: 8px;
     }
 
+    .modal-footer.modal-footer-split {
+      justify-content: space-between;
+    }
+
+    .modal-footer-actions {
+      display: flex;
+      gap: 8px;
+    }
+
     .btn-secondary {
       background: transparent;
       border: 1px solid var(--border-color);
@@ -983,9 +992,14 @@
           <pre id="modal-frontmatter-view" class="frontmatter-viewer"></pre>
         </div>
       </div>
-      <div class="modal-footer">
-        <button id="modal-btn-cancel" class="btn-secondary" data-i18n="btn_cancel">Cancel</button>
-        <button id="modal-btn-save" class="btn-primary" data-i18n="btn_save">Save</button>
+      <div class="modal-footer modal-footer-split">
+        <button id="modal-btn-external" class="btn-secondary" data-i18n-title="external_edit_title" title="Open in external editor">
+          <span data-i18n="btn_external_edit">External edit</span>
+        </button>
+        <div class="modal-footer-actions">
+          <button id="modal-btn-cancel" class="btn-secondary" data-i18n="btn_cancel">Cancel</button>
+          <button id="modal-btn-save" class="btn-primary" data-i18n="btn_save">Save</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1016,6 +1030,15 @@
             <button id="btn-browse-folder" class="btn-secondary" data-i18n="settings_browse">Browse...</button>
           </div>
           <span class="settings-hint" data-i18n="settings_tasks_dir_hint">Path to the directory containing your Markdown task files.</span>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label" data-i18n="settings_external_editor_label">External editor (optional)</label>
+          <div class="folder-picker-box">
+            <input type="text" id="setting-external-editor" class="settings-input" data-i18n-placeholder="settings_external_editor_placeholder" placeholder="Leave empty to use the app associated with .md">
+            <button id="btn-browse-editor" class="btn-secondary" data-i18n="settings_browse">Browse...</button>
+          </div>
+          <span class="settings-hint" data-i18n="settings_external_editor_hint">Used by the "External edit" button in the task editor. Leave empty to open .md files with your system's default application.</span>
         </div>
 
         <div class="settings-group">
@@ -1106,13 +1129,16 @@
     const modalFrontmatterView = document.getElementById('modal-frontmatter-view');
     const modalBtnSave = document.getElementById('modal-btn-save');
     const modalBtnCancel = document.getElementById('modal-btn-cancel');
+    const modalBtnExternal = document.getElementById('modal-btn-external');
     const modalTopClose = document.getElementById('modal-top-close');
 
     const settingsModal = document.getElementById('settings-modal');
     const settingTasksDir = document.getElementById('setting-tasks-dir');
     const settingMaxHeight = document.getElementById('setting-max-height');
     const settingLanguage = document.getElementById('setting-language');
+    const settingExternalEditor = document.getElementById('setting-external-editor');
     const btnBrowseFolder = document.getElementById('btn-browse-folder');
+    const btnBrowseEditor = document.getElementById('btn-browse-editor');
     const settingsBtnSave = document.getElementById('settings-btn-save');
     const settingsBtnCancel = document.getElementById('settings-btn-cancel');
     const settingsTopClose = document.getElementById('settings-top-close');
@@ -1223,6 +1249,10 @@
         editor_task_title_label: "Task title",
         editor_task_title_placeholder: "Task title...",
         editor_body_label: "Task description (Markdown)",
+        btn_external_edit: "External edit",
+        external_edit_title: "Open the task file in an external editor",
+        external_edit_error_title: "Could not open external editor",
+        external_edit_error_message: "The task was saved, but the external editor could not be launched. Check the editor path in Settings.",
         editor_body_placeholder: "Enter a detailed task description...",
         editor_metadata_label: "Metadata (YAML Frontmatter)",
         btn_cancel: "Cancel",
@@ -1233,10 +1263,14 @@
         settings_tasks_dir_label: "Tasks storage folder (.md)",
         settings_browse: "Browse...",
         settings_tasks_dir_hint: "Path to the directory containing your Markdown task files.",
+        settings_external_editor_label: "External editor (optional)",
+        settings_external_editor_placeholder: "Leave empty to use the app associated with .md",
+        settings_external_editor_hint: "Used by the \"External edit\" button in the task editor. Leave empty to open .md files with your system's default application.",
         settings_max_height_label: "Sidebar height (pixels)",
         settings_max_height_placeholder: "Leave empty for full screen height",
         settings_max_height_hint: "If a fixed height is set (e.g. 700), the sidebar is centered vertically on the screen with equal top and bottom margins.",
         btn_apply: "Apply",
+        btn_ok: "OK",
         confirm_default_title: "Confirmation",
         confirm_default_yes: "Yes",
         no_tasks_search: "No results for your search",
@@ -1273,6 +1307,10 @@
         editor_task_title_label: "Название задачи",
         editor_task_title_placeholder: "Название задачи...",
         editor_body_label: "Описание задачи (Markdown)",
+        btn_external_edit: "Внешний редактор",
+        external_edit_title: "Открыть файл задачи во внешнем редакторе",
+        external_edit_error_title: "Не удалось открыть внешний редактор",
+        external_edit_error_message: "Задача сохранена, но внешний редактор запустить не удалось. Проверьте путь к редактору в настройках.",
         editor_body_placeholder: "Введите подробное описание задачи...",
         editor_metadata_label: "Метаданные (YAML Frontmatter)",
         btn_cancel: "Отмена",
@@ -1283,10 +1321,14 @@
         settings_tasks_dir_label: "Папка хранения задач (.md)",
         settings_browse: "Обзор...",
         settings_tasks_dir_hint: "Путь к каталогу с вашими Markdown-файлами задач.",
+        settings_external_editor_label: "Внешний редактор (необязательно)",
+        settings_external_editor_placeholder: "Оставьте пустым, чтобы использовать приложение, ассоциированное с .md",
+        settings_external_editor_hint: "Используется кнопкой «Внешний редактор» в редакторе задачи. Если поле пустое, .md-файлы будут открываться приложением по умолчанию в системе.",
         settings_max_height_label: "Высота сайдбара (пиксели)",
         settings_max_height_placeholder: "Оставьте пустым для полной высоты экрана",
         settings_max_height_hint: "Если задана фиксированная высота (например 700), сайдбар центрируется вертикально на экране с равными отступами сверху и снизу.",
         btn_apply: "Применить",
+        btn_ok: "ОК",
         confirm_default_title: "Подтверждение",
         confirm_default_yes: "Да",
         no_tasks_search: "Ничего не найдено по запросу",
@@ -1323,6 +1365,10 @@
         editor_task_title_label: "任务标题",
         editor_task_title_placeholder: "任务标题…",
         editor_body_label: "任务描述(Markdown)",
+        btn_external_edit: "外部编辑",
+        external_edit_title: "在外部编辑器中打开任务文件",
+        external_edit_error_title: "无法打开外部编辑器",
+        external_edit_error_message: "任务已保存，但无法启动外部编辑器。请检查设置中的编辑器路径。",
         editor_body_placeholder: "输入详细的任务描述…",
         editor_metadata_label: "元数据(YAML Frontmatter)",
         btn_cancel: "取消",
@@ -1333,10 +1379,14 @@
         settings_tasks_dir_label: "任务存储文件夹(.md)",
         settings_browse: "浏览…",
         settings_tasks_dir_hint: "存放 Markdown 任务文件的目录路径。",
+        settings_external_editor_label: "外部编辑器（可选）",
+        settings_external_editor_placeholder: "留空则使用与 .md 关联的应用程序",
+        settings_external_editor_hint: "由任务编辑器中的“外部编辑”按钮使用。留空则使用系统默认应用程序打开 .md 文件。",
         settings_max_height_label: "侧边栏高度(像素)",
         settings_max_height_placeholder: "留空则使用整个屏幕高度",
         settings_max_height_hint: "如果设置了固定高度(例如 700),侧边栏会在屏幕上垂直居中,上下边距相等。",
         btn_apply: "应用",
+        btn_ok: "确定",
         confirm_default_title: "确认",
         confirm_default_yes: "是",
         no_tasks_search: "未找到匹配的搜索结果",
@@ -1425,6 +1475,7 @@
         settingTasksDir.value = cfg.tasks_dir || '';
         settingMaxHeight.value = cfg.max_height || '';
         settingLanguage.value = cfg.language || 'en';
+        settingExternalEditor.value = cfg.external_editor || '';
         settingsModal.classList.add('active');
       }
     });
@@ -1438,13 +1489,23 @@
       }
     });
 
+    btnBrowseEditor.addEventListener('click', async () => {
+      if (window.pywebview) {
+        const editorPath = await window.pywebview.api.select_external_editor_path();
+        if (editorPath) {
+          settingExternalEditor.value = editorPath;
+        }
+      }
+    });
+
     settingsBtnSave.addEventListener('click', async () => {
       if (window.pywebview) {
         await window.pywebview.api.save_settings({
           tasks_dir: settingTasksDir.value,
           max_height: settingMaxHeight.value,
           theme: currentTheme,
-          language: currentLanguage
+          language: currentLanguage,
+          external_editor: settingExternalEditor.value
         });
         settingsModal.classList.remove('active');
         await window.refreshTasks();
@@ -1628,8 +1689,29 @@
       editingTask = null;
     }
 
+    async function openInExternalEditor() {
+      if (!editingTask || !window.pywebview) return;
+      const newTitle = modalTaskTitleInput.value.trim() || editingTask.title;
+      const newBody = taskBodyEditor.getValue();
+      // Save first, so the external editor always sees the same content
+      // that was visible in the QuickTask editor (this may rename the
+      // underlying .md file if the title changed -- use the returned id).
+      const updated = await window.pywebview.api.update_task_full(editingTask.id, newTitle, newBody);
+      const idToOpen = (updated && updated.id) || editingTask.id;
+
+      editorModal.classList.remove('active');
+      editingTask = null;
+      await window.refreshTasks(true);
+
+      const result = await window.pywebview.api.open_external_editor(idToOpen);
+      if (!result || !result.success) {
+        await showCustomConfirm(t('external_edit_error_message'), t('external_edit_error_title'), t('btn_ok'), 'btn-primary');
+      }
+    }
+
     modalBtnSave.addEventListener('click', saveBodyEditor);
     modalBtnCancel.addEventListener('click', closeBodyEditor);
+    modalBtnExternal.addEventListener('click', openInExternalEditor);
     modalTopClose.addEventListener('click', closeBodyEditor);
 
     window.addEventListener('keydown', (e) => {
