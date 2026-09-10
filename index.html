@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QuickTask</title>
@@ -636,6 +637,96 @@
       border-color: var(--accent);
     }
 
+    /* CodeMirror markdown editor: sized to fill the same flex slot the
+       plain textarea used to occupy. */
+    .modal-field-group .CodeMirror {
+      flex: 1;
+      min-height: 120px;
+      height: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-family: Consolas, "SF Mono", Menlo, Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .modal-field-group .CodeMirror-focused {
+      border-color: var(--accent);
+    }
+
+    .cm-placeholder-overlay {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 13px;
+      line-height: 1.5;
+      font-family: Consolas, "SF Mono", Menlo, Courier, monospace;
+      z-index: 1;
+    }
+
+    /* Custom CodeMirror theme, keyed to the app's own CSS variables. */
+    .cm-s-quicktask.CodeMirror {
+      position: relative;
+      background: var(--bg-primary);
+      color: var(--text-main);
+    }
+    .cm-s-quicktask .CodeMirror-cursor {
+      border-left: 1px solid var(--text-main);
+    }
+    .cm-s-quicktask .CodeMirror-selected {
+      background: color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+    .cm-s-quicktask .CodeMirror-gutters {
+      display: none;
+    }
+    .cm-s-quicktask .cm-header {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .cm-s-quicktask .cm-quote {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .cm-s-quicktask .cm-strong {
+      color: var(--text-main);
+      font-weight: 700;
+    }
+    .cm-s-quicktask .cm-em {
+      font-style: italic;
+    }
+    .cm-s-quicktask .cm-strikethrough {
+      color: var(--text-muted);
+      text-decoration: line-through;
+    }
+    .cm-s-quicktask .cm-code,
+    .cm-s-quicktask .cm-comment {
+      color: var(--text-main);
+      background: var(--frontmatter-bg);
+      border-radius: 3px;
+    }
+    .cm-s-quicktask .cm-link {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    .cm-s-quicktask .cm-link-string,
+    .cm-s-quicktask .cm-string,
+    .cm-s-quicktask .cm-url {
+      color: var(--text-muted);
+    }
+    .cm-s-quicktask .cm-hr {
+      color: var(--border-color);
+    }
+    .cm-s-quicktask .cm-list,
+    .cm-s-quicktask .cm-variable-2,
+    .cm-s-quicktask .cm-variable-3 {
+      color: var(--accent);
+    }
+    .cm-s-quicktask .cm-formatting {
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+
     /* Frontmatter Read-Only Viewer */
     .frontmatter-viewer {
       background: var(--frontmatter-bg);
@@ -955,6 +1046,8 @@
     </div>
   </div>
 
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/markdown.min.js"></script>
   <script>
     let currentTasks = [];
     let currentFilter = 'active';
@@ -993,6 +1086,19 @@
     const editorModal = document.getElementById('editor-modal');
     const modalTaskTitleInput = document.getElementById('modal-task-title-input');
     const taskBodyInput = document.getElementById('task-body-input');
+    const taskBodyEditor = CodeMirror.fromTextArea(taskBodyInput, {
+      mode: { name: 'markdown', highlightFormatting: true },
+      theme: 'quicktask',
+      lineWrapping: true,
+      viewportMargin: Infinity,
+    });
+    const taskBodyPlaceholder = document.createElement('div');
+    taskBodyPlaceholder.className = 'cm-placeholder-overlay';
+    taskBodyEditor.getWrapperElement().appendChild(taskBodyPlaceholder);
+    function updateBodyPlaceholder() {
+      taskBodyPlaceholder.style.display = taskBodyEditor.getValue() ? 'none' : 'block';
+    }
+    taskBodyEditor.on('change', updateBodyPlaceholder);
     const modalFrontmatterView = document.getElementById('modal-frontmatter-view');
     const modalBtnSave = document.getElementById('modal-btn-save');
     const modalBtnCancel = document.getElementById('modal-btn-cancel');
@@ -1272,6 +1378,7 @@
       });
 
       if (settingLanguage) settingLanguage.value = currentLanguage;
+      taskBodyPlaceholder.textContent = t('editor_body_placeholder');
       renderTasks();
     }
 
@@ -1480,7 +1587,8 @@
     function openBodyEditor(task) {
       editingTask = task;
       modalTaskTitleInput.value = task.title;
-      taskBodyInput.value = task.body || '';
+      taskBodyEditor.setValue(task.body || '');
+      updateBodyPlaceholder();
 
       const meta = task.metadata || {
         done: task.done,
@@ -1497,13 +1605,14 @@
       modalFrontmatterView.textContent = lines.join("\n");
 
       editorModal.classList.add('active');
-      setTimeout(() => taskBodyInput.focus(), 60);
+      taskBodyEditor.refresh();
+      setTimeout(() => taskBodyEditor.focus(), 60);
     }
 
     async function saveBodyEditor() {
       if (!editingTask || !window.pywebview) return;
       const newTitle = modalTaskTitleInput.value.trim() || editingTask.title;
-      const newBody = taskBodyInput.value;
+      const newBody = taskBodyEditor.getValue();
       await window.pywebview.api.update_task_full(editingTask.id, newTitle, newBody);
       editorModal.classList.remove('active');
       editingTask = null;
