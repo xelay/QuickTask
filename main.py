@@ -40,6 +40,42 @@ CURRENT_WINDOW: Optional[webview.Window] = None
 SCREEN_WIDTH: int = 1920
 SCREEN_HEIGHT: int = 1080
 
+
+def get_logical_screen_size() -> "tuple[int, int]":
+    """
+    Best-effort *logical*-pixel size of the primary monitor, in the same
+    coordinate space pywebview itself expects.
+
+    pywebview (winforms/WebView2 backend) treats every x/y/width/height you
+    pass to create_window()/move()/resize(), and every value it reports via
+    webview.screens, as LOGICAL pixels (96 DPI baseline) -- it multiplies
+    them internally by the window's real DPI scale (GetDpiForWindow()/96)
+    to get physical pixels for the actual Win32 window. See
+    BrowserForm.__init__ / BrowserForm.move() in
+    webview/platforms/winforms.py.
+
+    Before this process (or pywebview) declares any DPI awareness,
+    GetSystemMetrics(SM_CXSCREEN/Y) returns Windows' DPI-virtualized
+    ("logical") screen size -- exactly the unit pywebview wants here. This
+    is why we must NOT call SetProcessDpiAwareness*/Context anywhere in
+    this file: doing so would make this call return *physical* pixels
+    instead, which pywebview would then scale a second time, pushing the
+    window off the right edge of the screen on any display scaled above
+    100% (this was the actual cause of the positioning bug).
+
+    Falls back to the current SCREEN_WIDTH/SCREEN_HEIGHT globals if the
+    WinAPI call is unavailable.
+    """
+    if sys.platform == "win32":
+        try:
+            width = ctypes.windll.user32.GetSystemMetrics(0)   # SM_CXSCREEN
+            height = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
+            if width > 0 and height > 0:
+                return width, height
+        except Exception:
+            pass
+    return SCREEN_WIDTH, SCREEN_HEIGHT
+
 def sanitize_filename(title: str, max_length: int = 50) -> str:
     cleaned = re.sub(r'[\\/*?:"<>|]', "", title).strip()
     cleaned = re.sub(r'[\s_]+', "-", cleaned)
@@ -566,7 +602,9 @@ class QuickTaskAPI:
 
 def main():
     global CURRENT_WINDOW, SCREEN_WIDTH, SCREEN_HEIGHT
-    
+
+    SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
+
     api = QuickTaskAPI()
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
@@ -593,10 +631,23 @@ def main():
             screens = webview.screens
             if screens:
                 primary = screens[0]
-                SCREEN_WIDTH = primary.width
-                SCREEN_HEIGHT = primary.height
+                if primary.width and primary.height:
+                    SCREEN_WIDTH = primary.width
+                    SCREEN_HEIGHT = primary.height
         except Exception:
             pass
+
+        # The pre-start guess above (get_logical_screen_size) can be off
+        # (process launched on a different monitor/DPI than where the
+        # window ends up, work-area edge cases, etc.). Re-apply the now
+        # -authoritative screen size immediately so the window is
+        # guaranteed to land in the right place from the start, instead
+        # of waiting for the user to trigger expand()/collapse() manually.
+        try:
+            api.collapse(force=True)
+        except Exception as e:
+            print(f"Error re-positioning window on startup: {e}", file=sys.stderr)
+
         remove_taskbar_icon()
         api.start_watcher()
         api.register_hotkey()
