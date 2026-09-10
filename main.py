@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 import webview
+from webview.window import FixPoint
 import frontmatter
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -35,6 +36,13 @@ DEFAULT_CONFIG = {
     "theme": "dark",
     "tasks_dir": str(DEFAULT_TASKS_DIR)
 }
+
+# Bounds for interactively resizing the expanded sidebar by dragging its
+# left edge (QuickTaskAPI.resize_sidebar). Intentionally not persisted to
+# config.json -- resets to sidebar_width on the next launch, but is kept
+# for the rest of the current run (see QuickTaskAPI.session_sidebar_width).
+MIN_SIDEBAR_WIDTH = 280
+MAX_SIDEBAR_WIDTH = 900
 
 CURRENT_WINDOW: Optional[webview.Window] = None
 SCREEN_WIDTH: int = 1920
@@ -167,6 +175,10 @@ class TaskFileHandler(FileSystemEventHandler):
 class QuickTaskAPI:
     def __init__(self):
         self.is_expanded = False
+        # Session-only sidebar width set by dragging the left edge
+        # (resize_sidebar). None means "use config['sidebar_width']".
+        # Deliberately never written to config.json: resets on next launch.
+        self.session_sidebar_width: Optional[int] = None
         self.config = self.load_config()
         self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -261,7 +273,7 @@ class QuickTaskAPI:
     def expand(self):
         if not CURRENT_WINDOW:
             return
-        width = int(self.config.get("sidebar_width", 380))
+        width = int(self.session_sidebar_width or self.config.get("sidebar_width", 380))
         max_h = self.config.get("max_height")
         
         if max_h and int(max_h) > 0 and int(max_h) < SCREEN_HEIGHT:
@@ -357,6 +369,41 @@ class QuickTaskAPI:
             x = SCREEN_WIDTH - int(self.config.get("handle_width", 36))
             CURRENT_WINDOW.move(x, new_y)
         return new_y
+
+    def resize_sidebar(self, delta_x: int) -> int:
+        """
+        Resize the expanded sidebar by dragging its left edge.
+
+        delta_x is the incremental mouse movement along X since the last
+        call (positive = pointer moved right, negative = moved left).
+        Moving the handle left should grow the sidebar, so width changes
+        by -delta_x. The window's right edge stays put via
+        FixPoint.EAST (pywebview keeps that edge fixed and grows/shrinks
+        toward the left) -- see BrowserForm.resize() in
+        webview/platforms/winforms.py.
+
+        The resulting width is kept only in memory (session_sidebar_width)
+        and is NOT written to config.json: it resets to the configured
+        default on the next launch, but persists across collapse/expand
+        within the current run.
+        """
+        current_width = int(self.session_sidebar_width or self.config.get("sidebar_width", 380))
+        new_width = current_width - int(delta_x)
+        new_width = max(MIN_SIDEBAR_WIDTH, min(MAX_SIDEBAR_WIDTH, new_width, SCREEN_WIDTH))
+
+        if not CURRENT_WINDOW or not self.is_expanded:
+            self.session_sidebar_width = new_width
+            return new_width
+
+        max_h = self.config.get("max_height")
+        if max_h and int(max_h) > 0 and int(max_h) < SCREEN_HEIGHT:
+            target_height = int(max_h)
+        else:
+            target_height = SCREEN_HEIGHT
+
+        CURRENT_WINDOW.resize(new_width, target_height, FixPoint.EAST)
+        self.session_sidebar_width = new_width
+        return new_width
 
     def save_tasks_order(self, order: List[str]) -> bool:
         self._save_index_order(order)
@@ -652,7 +699,7 @@ def main():
         api.start_watcher()
         api.register_hotkey()
 
-    webview.start(on_started, debug=True)
+    webview.start(on_started, debug=False)
 
 if __name__ == "__main__":
     main()

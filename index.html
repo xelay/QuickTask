@@ -175,6 +175,20 @@
       position: relative;
     }
 
+    /* Invisible drag strip over the sidebar's left edge: lets the user
+       resize the window by dragging, like a native window border.
+       No visible line -- only the cursor changes on hover. */
+    #sidebar-resize-handle {
+      position: absolute;
+      top: 0;
+      left: -4px;
+      width: 8px;
+      height: 100%;
+      cursor: ew-resize;
+      background: transparent;
+      z-index: 20;
+    }
+
     #sidebar-content {
       flex: 1;
       display: flex;
@@ -763,6 +777,7 @@
 
   <!-- Expanded Sidebar -->
   <div id="sidebar">
+    <div id="sidebar-resize-handle"></div>
     <div id="sidebar-content">
       <header>
         <div class="header-top">
@@ -941,6 +956,8 @@
     let hoverTimeout = null;
     let isDragging = false;
     let dragStartY = 0;
+    let isResizingSidebar = false;
+    let resizeStartX = 0;
     let currentTheme = 'dark';
     let draggedCard = null;
     let confirmResolver = null;
@@ -948,6 +965,7 @@
     const collapsedTab = document.getElementById('collapsed-tab');
     const collapsedDragTab = document.getElementById('collapsed-drag-tab');
     const sidebar = document.getElementById('sidebar');
+    const sidebarResizeHandle = document.getElementById('sidebar-resize-handle');
     const btnNew = document.getElementById('btn-new');
     const btnPin = document.getElementById('btn-pin');
     const btnTheme = document.getElementById('btn-theme');
@@ -1001,7 +1019,7 @@
 
     window.addEventListener('blur', () => {
       isAppFocused = false;
-      if (!isPinned && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
+      if (!isPinned && !anyModalOpen() && !isDragging && !isResizingSidebar && document.body.classList.contains('expanded')) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
@@ -1143,7 +1161,7 @@
     });
 
     sidebar.addEventListener('mouseleave', () => {
-      if (!isPinned && !isAppFocused && !anyModalOpen() && !isDragging && document.body.classList.contains('expanded')) {
+      if (!isPinned && !isAppFocused && !anyModalOpen() && !isDragging && !isResizingSidebar && document.body.classList.contains('expanded')) {
         if (window.pywebview) window.pywebview.api.collapse(false);
       }
     });
@@ -1171,6 +1189,34 @@
     window.addEventListener('mouseup', () => {
       if (isDragging) {
         setTimeout(() => { isDragging = false; }, 50);
+      }
+    });
+
+    // Sidebar left-edge resize: mirrors the vertical drag handle above,
+    // but grows/shrinks the window width via resize_sidebar() instead of
+    // moving it. The window's right edge is anchored server-side
+    // (FixPoint.EAST), so we only ever send incremental X deltas.
+    sidebarResizeHandle.addEventListener('mousedown', (e) => {
+      isResizingSidebar = true;
+      resizeStartX = e.screenX;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizingSidebar) return;
+      const deltaX = e.screenX - resizeStartX;
+      if (Math.abs(deltaX) >= 2) {
+        resizeStartX = e.screenX;
+        if (window.pywebview) {
+          window.pywebview.api.resize_sidebar(deltaX);
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isResizingSidebar) {
+        setTimeout(() => { isResizingSidebar = false; }, 50);
       }
     });
 
