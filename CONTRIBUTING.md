@@ -6,7 +6,8 @@
 
 ## Структура проекта
 
-- `main.py` — точка входа, вся логика на Python: окно (pywebview), работа с файлами задач, watchdog-синхронизация, глобальный хоткей, скрытие иконки из панели задач.
+- `main.py` — точка входа: окно (pywebview), обвязка QuickTaskAPI, watchdog-синхронизация, глобальный хоткей, скрытие иконки из панели задач.
+- `task_store.py` — хранилище задач: разбор/запись фронтматтера, SQLite-кэш метаданных (чтобы список задач не пересобирался с нуля из всех .md-файлов на каждый чих), дробные ключи сортировки (`order_key` в самом файле задачи — без общего файла порядка).
 - `index.html` — весь UI (HTML/CSS/JS в одном файле).
 - `vendor/codemirror/` — редактор CodeMirror, используемый для описания задачи. Подключается из `index.html` относительным путём.
 - `requirements.txt` — зафиксированные версии зависимостей.
@@ -31,7 +32,7 @@ venv\Scripts\activate
 ```cmd
 pip install -r requirements.txt
 ```
-*(или вручную: `pip install pywebview python-frontmatter watchdog keyboard`)*
+*(или вручную: `pip install pywebview watchdog keyboard PyYAML`)*
 
 ### 4. Запуск приложения
 ```cmd

@@ -1,21 +1,20 @@
-import os
-import re
-import sys
 import json
+import os
+import sys
 import time
 import threading
 import ctypes
 import subprocess
 from ctypes import wintypes
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 import webview
 from webview.window import FixPoint
-import frontmatter
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+from task_store import TaskStore
 
 try:
     import keyboard
@@ -117,24 +116,6 @@ def get_logical_screen_size() -> "tuple[int, int]":
             pass
     return SCREEN_WIDTH, SCREEN_HEIGHT
 
-def sanitize_filename(title: str, max_length: int = 50) -> str:
-    cleaned = re.sub(r'[\\/*?:"<>|]', "", title).strip()
-    cleaned = re.sub(r'[\s_]+', "-", cleaned)
-    cleaned = cleaned.strip("-.")
-    if not cleaned:
-        cleaned = "untitled"
-    return cleaned[:max_length].rstrip("-.")
-
-def get_unique_filename(directory: Path, base_name: str, current_path: Optional[Path] = None) -> Path:
-    target = directory / f"{base_name}.md"
-    if current_path and target.resolve() == current_path.resolve():
-        return target
-    counter = 1
-    while target.exists():
-        target = directory / f"{base_name}_{counter}.md"
-        counter += 1
-    return target
-
 
 def remove_taskbar_icon():
     """
@@ -186,23 +167,49 @@ def remove_taskbar_icon():
 
 
 class TaskFileHandler(FileSystemEventHandler):
+    """
+    Forwards individual filesystem changes to the TaskStore so exactly the
+    file that changed gets re-parsed (see task_store.TaskStore.refresh_file)
+    -- not the whole folder. The 0.3s debounce below only throttles how
+    often the JS side is told "something changed, ask for the list again";
+    it never delays updating the underlying cache itself, so the app's own
+    next get_tasks() call is always correct even if a notify was skipped.
+    """
+
     def __init__(self, api_ref):
         super().__init__()
         self.api = api_ref
-        self._last_event_time = 0
+        self._last_notify_time = 0
+
+    def _handle_path(self, path: str) -> bool:
+        if not path or not path.endswith(".md"):
+            return False
+        name = os.path.basename(path)
+        if os.path.exists(path):
+            self.api.store.refresh_file(name)
+        else:
+            self.api.store.forget_file(name)
+        return True
 
     def on_any_event(self, event):
         if event.is_directory:
             return
-        src_path = getattr(event, "src_path", "")
-        dest_path = getattr(event, "dest_path", "")
+        src_path = getattr(event, "src_path", "") or ""
+        dest_path = getattr(event, "dest_path", "") or ""
         if "index.json" in src_path or "index.json" in dest_path:
             return
-        if (src_path and src_path.endswith(".md")) or (dest_path and dest_path.endswith(".md")):
-            now = time.time()
-            if now - self._last_event_time > 0.3:
-                self._last_event_time = now
-                self.api.notify_tasks_changed()
+
+        touched = False
+        for path in (src_path, dest_path):
+            if self._handle_path(path):
+                touched = True
+        if not touched:
+            return
+
+        now = time.time()
+        if now - self._last_notify_time > 0.3:
+            self._last_notify_time = now
+            self.api.notify_tasks_changed()
 
 
 class QuickTaskAPI:
@@ -215,39 +222,12 @@ class QuickTaskAPI:
         self.config = self.load_config()
         self.tasks_dir = Path(self.config.get("tasks_dir", str(DEFAULT_TASKS_DIR)))
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
-        self.index_file = self.tasks_dir / "index.json"
-        self._ensure_index_file()
+        self.store = TaskStore(self.tasks_dir)
         self.observer: Optional[Observer] = None
         # Combo string currently registered with the `keyboard` library, if
         # any. Tracked separately from config["hotkey"] so register_hotkey()
         # can cleanly unhook the previous combo before hooking a new one.
         self.registered_hotkey: Optional[str] = None
-
-    def _ensure_index_file(self):
-        try:
-            if not self.index_file.exists():
-                with open(self.index_file, "w", encoding="utf-8") as f:
-                    json.dump([], f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error ensuring index.json: {e}", file=sys.stderr)
-
-    def _load_index_order(self) -> List[str]:
-        if self.index_file.exists():
-            try:
-                with open(self.index_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        return data
-            except Exception as e:
-                print(f"Error loading index.json: {e}", file=sys.stderr)
-        return []
-
-    def _save_index_order(self, order: List[str]):
-        try:
-            with open(self.index_file, "w", encoding="utf-8") as f:
-                json.dump(order, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving index.json: {e}", file=sys.stderr)
 
     def load_config(self) -> Dict[str, Any]:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -278,8 +258,7 @@ class QuickTaskAPI:
             except Exception:
                 pass
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
-        self.index_file = self.tasks_dir / "index.json"
-        self._ensure_index_file()
+        self.store = TaskStore(self.tasks_dir)
         event_handler = TaskFileHandler(self)
         self.observer = Observer()
         self.observer.schedule(event_handler, str(self.tasks_dir), recursive=False)
@@ -367,16 +346,16 @@ class QuickTaskAPI:
             return
         width = int(self.session_sidebar_width or self.config.get("sidebar_width", 380))
         max_h = self.config.get("max_height")
-        
+
         if max_h and int(max_h) > 0 and int(max_h) < SCREEN_HEIGHT:
             target_height = int(max_h)
             y = max(0, (SCREEN_HEIGHT - target_height) // 2)
         else:
             target_height = SCREEN_HEIGHT
             y = 0
-            
+
         x = SCREEN_WIDTH - width
-        
+
         CURRENT_WINDOW.resize(width, target_height)
         CURRENT_WINDOW.move(x, y)
         self.is_expanded = True
@@ -387,7 +366,7 @@ class QuickTaskAPI:
             return
         if self.config.get("pinned", False) and not force:
             return
-        
+
         h_width = int(self.config.get("handle_width", 36))
         total_h = int(self.config.get("handle_total_height", 100))
         x = SCREEN_WIDTH - h_width
@@ -421,7 +400,7 @@ class QuickTaskAPI:
         if "max_height" in settings:
             val = settings["max_height"]
             self.config["max_height"] = int(val) if val and str(val).isdigit() and int(val) > 0 else None
-        
+
         if "tasks_dir" in settings and settings["tasks_dir"]:
             new_path = Path(settings["tasks_dir"]).expanduser().resolve()
             if new_path != self.tasks_dir:
@@ -519,231 +498,55 @@ class QuickTaskAPI:
         self.session_sidebar_width = new_width
         return new_width
 
-    def save_tasks_order(self, order: List[str]) -> bool:
-        self._save_index_order(order)
-        return True
-
     def get_tasks(self) -> List[Dict[str, Any]]:
-        task_dict = {}
-        if not self.tasks_dir.exists():
-            return []
-
-        for file_path in self.tasks_dir.glob("*.md"):
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    post = frontmatter.load(f)
-                metadata = post.metadata
-                content = post.content
-
-                title = file_path.stem
-                body_lines = []
-                h1_found = False
-                for line in content.splitlines():
-                    if not h1_found and line.strip().startswith("# "):
-                        title = line.strip()[2:].strip()
-                        h1_found = True
-                    else:
-                        body_lines.append(line)
-
-                body = "\n".join(body_lines).strip()
-                task_dict[file_path.name] = {
-                    "id": file_path.name,
-                    "title": title,
-                    "body": body,
-                    "done": bool(metadata.get("done", False)),
-                    "archived": bool(metadata.get("archived", False)),
-                    "urgent": bool(metadata.get("urgent", False)),
-                    "created_at": str(metadata.get("created_at", "")),
-                    "updated_at": str(metadata.get("updated_at", "")),
-                    "metadata": {k: str(v) for k, v in metadata.items()}
-                }
-            except Exception as e:
-                print(f"Error parsing task {file_path}: {e}", file=sys.stderr)
-
-        order = self._load_index_order()
-        sorted_tasks = []
-        seen = set()
-
-        for file_name in order:
-            if file_name in task_dict:
-                sorted_tasks.append(task_dict[file_name])
-                seen.add(file_name)
-
-        remaining = [t for fid, t in task_dict.items() if fid not in seen]
-        remaining.sort(key=lambda t: t.get("updated_at") or t.get("created_at") or "", reverse=True)
-        final_list = remaining + sorted_tasks
-
-        new_order = [t["id"] for t in final_list]
-        if new_order != order:
-            self._save_index_order(new_order)
-
-        return final_list
+        return self.store.list_tasks()
 
     def create_task(self, title: str = "New", body: str = "") -> Optional[Dict[str, Any]]:
-        now_str = datetime.now().isoformat(timespec="seconds")
-        clean_title = title.strip() or "New"
-        base_name = sanitize_filename(clean_title)
-        file_path = get_unique_filename(self.tasks_dir, base_name)
-
-        post = frontmatter.Post(
-            content=f"# {clean_title}\n\n{body}".strip(),
-            done=False,
-            archived=False,
-            urgent=False,
-            created_at=now_str,
-            updated_at=now_str
-        )
-
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                frontmatter.dump(post, f)
-            
-            order = self._load_index_order()
-            order = [file_path.name] + [fid for fid in order if fid != file_path.name]
-            self._save_index_order(order)
-
-            return {
-                "id": file_path.name,
-                "title": clean_title,
-                "body": body,
-                "done": False,
-                "archived": False,
-                "urgent": False,
-                "created_at": now_str,
-                "updated_at": now_str,
-                "metadata": {
-                    "done": "False",
-                    "archived": "False",
-                    "urgent": "False",
-                    "created_at": now_str,
-                    "updated_at": now_str
-                }
-            }
+            return self.store.create_task(title, body)
         except Exception as e:
             print(f"Error creating task: {e}", file=sys.stderr)
             return None
 
-    def update_task_status(self, task_id: str, done: Optional[bool] = None, archived: Optional[bool] = None, urgent: Optional[bool] = None) -> bool:
-        file_path = self.tasks_dir / task_id
-        if not file_path.exists():
-            return False
+    def update_task_status(self, task_id: str, done: Optional[bool] = None,
+                            archived: Optional[bool] = None, urgent: Optional[bool] = None) -> bool:
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-            if done is not None:
-                post.metadata["done"] = bool(done)
-            if archived is not None:
-                post.metadata["archived"] = bool(archived)
-            if urgent is not None:
-                post.metadata["urgent"] = bool(urgent)
-            post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
-
-            with open(file_path, "w", encoding="utf-8") as f:
-                frontmatter.dump(post, f)
-            return True
+            return self.store.update_task_status(task_id, done, archived, urgent)
         except Exception as e:
             print(f"Error updating status for {task_id}: {e}", file=sys.stderr)
             return False
 
     def update_task_title(self, task_id: str, new_title: str) -> Optional[str]:
-        file_path = self.tasks_dir / task_id
-        if not file_path.exists():
-            return None
-        clean_title = new_title.strip() or "Untitled"
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-            post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
-
-            body_lines = []
-            h1_found = False
-            for line in post.content.splitlines():
-                if not h1_found and line.strip().startswith("# "):
-                    h1_found = True
-                else:
-                    body_lines.append(line)
-
-            post.content = f"# {clean_title}\n\n" + "\n".join(body_lines).strip()
-
-            base_name = sanitize_filename(clean_title)
-            new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
-
-            if new_file_path.resolve() != file_path.resolve():
-                with open(file_path, "w", encoding="utf-8") as f:
-                    frontmatter.dump(post, f)
-                file_path.rename(new_file_path)
-
-                order = self._load_index_order()
-                order = [new_file_path.name if x == file_path.name else x for x in order]
-                self._save_index_order(order)
-            else:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    frontmatter.dump(post, f)
-
-            return new_file_path.name
+            return self.store.update_task_title(task_id, new_title)
         except Exception as e:
             print(f"Error updating title for {task_id}: {e}", file=sys.stderr)
             return None
 
     def update_task_full(self, task_id: str, new_title: str, new_body: str) -> Optional[Dict[str, Any]]:
-        file_path = self.tasks_dir / task_id
-        if not file_path.exists():
-            return None
-        clean_title = new_title.strip() or "Untitled"
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-            now_str = datetime.now().isoformat(timespec="seconds")
-            post.metadata["updated_at"] = now_str
-            post.content = f"# {clean_title}\n\n{new_body.strip()}"
-
-            base_name = sanitize_filename(clean_title)
-            new_file_path = get_unique_filename(self.tasks_dir, base_name, file_path)
-
-            if new_file_path.resolve() != file_path.resolve():
-                with open(file_path, "w", encoding="utf-8") as f:
-                    frontmatter.dump(post, f)
-                file_path.rename(new_file_path)
-
-                order = self._load_index_order()
-                order = [new_file_path.name if x == file_path.name else x for x in order]
-                self._save_index_order(order)
-            else:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    frontmatter.dump(post, f)
-
-            return {
-                "id": new_file_path.name,
-                "title": clean_title,
-                "body": new_body.strip(),
-                "updated_at": now_str,
-                "metadata": {k: str(v) for k, v in post.metadata.items()}
-            }
+            return self.store.update_task_full(task_id, new_title, new_body)
         except Exception as e:
             print(f"Error updating task full for {task_id}: {e}", file=sys.stderr)
             return None
 
     def update_task_body(self, task_id: str, new_body: str) -> bool:
-        file_path = self.tasks_dir / task_id
-        if not file_path.exists():
-            return False
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-            post.metadata["updated_at"] = datetime.now().isoformat(timespec="seconds")
-
-            title = file_path.stem
-            for line in post.content.splitlines():
-                if line.strip().startswith("# "):
-                    title = line.strip()[2:].strip()
-                    break
-
-            post.content = f"# {title}\n\n{new_body.strip()}"
-            with open(file_path, "w", encoding="utf-8") as f:
-                frontmatter.dump(post, f)
-            return True
+            return self.store.update_task_body(task_id, new_body)
         except Exception as e:
             print(f"Error updating body for {task_id}: {e}", file=sys.stderr)
+            return False
+
+    def reorder_task(self, task_id: str, before_id: Optional[str] = None, after_id: Optional[str] = None) -> bool:
+        """Move task_id to sit right after before_id and right before
+        after_id (either may be None/omitted for "start"/"end" of the
+        list). Called by the sidebar's drag-and-drop after a card is
+        dropped, with its new immediate neighbours' ids -- writes exactly
+        one file no matter how many tasks exist (see task_store.py)."""
+        try:
+            return self.store.reorder_task(task_id, before_id, after_id)
+        except Exception as e:
+            print(f"Error reordering {task_id}: {e}", file=sys.stderr)
             return False
 
     def open_external_editor(self, task_id: str) -> Dict[str, Any]:
@@ -783,18 +586,11 @@ class QuickTaskAPI:
             return {"success": False, "error": str(e)}
 
     def delete_task(self, task_id: str) -> bool:
-        file_path = self.tasks_dir / task_id
-        if file_path.exists():
-            try:
-                file_path.unlink()
-                order = self._load_index_order()
-                if task_id in order:
-                    order.remove(task_id)
-                    self._save_index_order(order)
-                return True
-            except Exception as e:
-                print(f"Error deleting task {task_id}: {e}", file=sys.stderr)
-        return False
+        try:
+            return self.store.delete_task(task_id)
+        except Exception as e:
+            print(f"Error deleting task {task_id}: {e}", file=sys.stderr)
+            return False
 
 
 def main():
