@@ -8,7 +8,7 @@ listed under [Unreleased].
 
 ## [Unreleased]
 
-Targeting 1.1.0.
+## [1.2.0] - 2026-09-11
 
 ### Added
 
