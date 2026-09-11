@@ -358,7 +358,10 @@
       padding: 8px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      /* No flex `gap` here: the list is virtualized (see renderTasks()) and
+         needs to size two spacer elements in exact pixels to stand in for
+         the tasks that aren't mounted. Each .task-card carries its own
+         margin-bottom instead, so the on-screen spacing is unchanged. */
     }
 
     #task-list::-webkit-scrollbar {
@@ -369,12 +372,21 @@
       border-radius: 3px;
     }
 
+    /* Spacer elements standing in for the (many) tasks above/below the
+       currently-mounted window, so the scrollbar's size and position stay
+       correct without every task needing a live DOM node. */
+    .task-list-spacer {
+      flex-shrink: 0;
+      width: 100%;
+    }
+
     /* Task Card */
     .task-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 7px 8px;
+      margin-bottom: 6px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -1113,7 +1125,51 @@
     // id -> task-card DOM element, so re-rendering can reuse and patch
     // existing nodes instead of tearing down and rebuilding the whole
     // list on every refresh (see createTaskCard/patchTaskCard/renderTasks).
+    // Only holds the currently-MOUNTED (virtualized) cards -- see
+    // renderTasks() -- not every task that matches the current filter.
     const cardElements = new Map();
+
+    // How many extra rows to keep mounted just outside the visible
+    // viewport, so a small scroll doesn't need to create a card on every
+    // frame and a drag near the edge has a little room to work with.
+    const VIRTUAL_OVERSCAN = 8;
+    // How many rows to mount, uncounted against the real viewport size,
+    // before we've ever been able to measure a real row's height (e.g. the
+    // very first render, or while the sidebar is still collapsed and thus
+    // display:none -- see measureRowStride()). Keeps something on screen
+    // immediately instead of waiting on a layout that may not happen yet.
+    const VIRTUAL_INITIAL_BATCH = 60;
+
+    // Spacer elements standing in for the tasks above/below the mounted
+    // window, so #task-list's scrollbar has the right size/position
+    // without every task needing a live DOM node (see renderTasks()).
+    const topSpacer = document.createElement('div');
+    topSpacer.className = 'task-list-spacer';
+    const bottomSpacer = document.createElement('div');
+    bottomSpacer.className = 'task-list-spacer';
+
+    // The pixel height of one row (card + its margin-bottom), measured
+    // once real cards exist and the list is actually laid out (not
+    // display:none). Null until then -- see measureRowStride().
+    let rowStride = null;
+
+    // Snapshot of the most recent virtualized render, so code outside
+    // renderTasks() (persistCurrentOrder, after a drag) can tell what the
+    // moved card's true neighbours are even when they aren't mounted.
+    const virtualState = { filtered: [], startIndex: 0, endIndex: 0 };
+
+    // Measures row height from a currently-mounted card. Returns null if
+    // the list isn't laid out yet (e.g. sidebar still collapsed / display:
+    // none), in which case every card reports zero height and we must not
+    // trust that -- it would make every task look like it fits on screen.
+    function measureRowStride() {
+      const sample = cardElements.values().next().value;
+      if (!sample) return null;
+      const rect = sample.getBoundingClientRect();
+      if (rect.height <= 0) return null;
+      const marginBottom = parseFloat(getComputedStyle(sample).marginBottom) || 0;
+      return rect.height + marginBottom;
+    }
 
     const collapsedTab = document.getElementById('collapsed-tab');
     const collapsedDragTab = document.getElementById('collapsed-drag-tab');
@@ -1922,11 +1978,32 @@
       // assigns the moved task a single new sort key between those two
       // neighbours and writes exactly that one file, however many tasks
       // exist (see QuickTaskAPI.reorder_task / TaskStore.reorder_task).
+      //
+      // The list is virtualized (see renderTasks()): only the tasks near
+      // the viewport are real DOM siblings, flanked by two spacer elements
+      // standing in for everything above/below. previousElementSibling /
+      // nextElementSibling alone would misread a drop next to a spacer as
+      // "top/bottom of the entire list", silently corrupting order for
+      // every task actually hidden above or below it. So: walk only the
+      // real task-card siblings to find the moved card's neighbour among
+      // mounted cards, and fall back to the last computed virtual window
+      // (virtualState) to find the true neighbour just outside it when the
+      // moved card ends up first/last among the mounted ones.
       if (!window.pywebview || !movedCard || !movedCard.dataset.id) return;
-      const prev = movedCard.previousElementSibling;
-      const next = movedCard.nextElementSibling;
-      const beforeId = (prev && prev.dataset.id) ? prev.dataset.id : null;
-      const afterId = (next && next.dataset.id) ? next.dataset.id : null;
+      const mounted = Array.from(taskList.children).filter(el => el.classList.contains('task-card'));
+      const idx = mounted.indexOf(movedCard);
+      let beforeId = null;
+      let afterId = null;
+      if (idx > 0) {
+        beforeId = mounted[idx - 1].dataset.id;
+      } else if (virtualState.startIndex > 0) {
+        beforeId = virtualState.filtered[virtualState.startIndex - 1].id;
+      }
+      if (idx >= 0 && idx < mounted.length - 1) {
+        afterId = mounted[idx + 1].dataset.id;
+      } else if (virtualState.endIndex < virtualState.filtered.length) {
+        afterId = virtualState.filtered[virtualState.endIndex].id;
+      }
       await window.pywebview.api.reorder_task(movedCard.dataset.id, beforeId, afterId);
     }
 
@@ -2159,6 +2236,13 @@
       }
     }
 
+    // Tracks the currentFilter/searchQuery combination of the last render,
+    // so renderTasks() can tell a genuine filter/search change (which
+    // should jump the scroll position back to the top, like switching to
+    // a different list) from a data refresh or local edit (which must
+    // never move the scroll position under the user).
+    let lastFilterKey = null;
+
     // Reconciles the visible task list against currentTasks instead of
     // tearing the whole list down and rebuilding it: existing cards are
     // reused and patched in place, only genuinely new/removed tasks create
@@ -2166,6 +2250,15 @@
     // changed. options.forceRebuild discards every existing card first --
     // used only when something baked into card markup at creation time
     // (translated tooltip strings) needs to change for every card at once.
+    //
+    // The list is virtualized: of the tasks that pass the filter, only the
+    // ones near the current scroll position (plus a small overscan margin)
+    // get a real DOM node -- cardElements holds exactly those, not every
+    // matching task. Two spacer elements (topSpacer/bottomSpacer) stand in
+    // for everything above/below, sized in pixels from the measured row
+    // height, so the scrollbar's size and position are unaffected. This is
+    // what keeps the cost of a render bounded by "how many rows fit on
+    // screen" instead of "how many tasks exist", however large the folder.
     function renderTasks(options = {}) {
       const filtered = currentTasks.filter(task => {
         if (currentFilter === 'active' && (task.done || task.archived)) return false;
@@ -2181,14 +2274,24 @@
         return true;
       });
 
+      const filterKey = JSON.stringify([currentFilter, searchQuery]);
+      if (filterKey !== lastFilterKey) {
+        lastFilterKey = filterKey;
+        taskList.scrollTop = 0;
+      }
+
       if (options.forceRebuild) {
         for (const el of cardElements.values()) el.remove();
         cardElements.clear();
+        rowStride = null;
       }
 
       if (filtered.length === 0) {
         for (const el of cardElements.values()) el.remove();
         cardElements.clear();
+        virtualState.filtered = filtered;
+        virtualState.startIndex = 0;
+        virtualState.endIndex = 0;
         taskList.innerHTML = `
           <div class="empty-state">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2206,33 +2309,99 @@
         taskList.innerHTML = '';
       }
 
-      const seen = new Set();
-      let anchor = null;
+      // Mounts/reconciles the [startIndex, endIndex) slice of `filtered`
+      // and sizes the spacers around it. Called twice on the render that
+      // first discovers a real row height (see below): once to get
+      // *something* on screen, once more to replace it with the actually
+      // correct window now that we know how tall a row is.
+      function applyWindow() {
+        let startIndex = 0;
+        let endIndex = Math.min(filtered.length, VIRTUAL_INITIAL_BATCH);
 
-      filtered.forEach(task => {
-        seen.add(task.id);
-        let card = cardElements.get(task.id);
-        if (!card) {
-          card = createTaskCard(task);
-          cardElements.set(task.id, card);
-        } else if (card._task !== task) {
-          patchTaskCard(card, task);
+        if (rowStride) {
+          const scrollTop = taskList.scrollTop;
+          const viewportH = taskList.clientHeight;
+          if (viewportH > 0) {
+            startIndex = Math.max(0, Math.floor(scrollTop / rowStride) - VIRTUAL_OVERSCAN);
+            endIndex = Math.min(filtered.length, Math.ceil((scrollTop + viewportH) / rowStride) + VIRTUAL_OVERSCAN);
+          }
         }
 
-        const desiredNext = anchor ? anchor.nextSibling : taskList.firstChild;
-        if (desiredNext !== card) {
-          taskList.insertBefore(card, desiredNext);
+        if (taskList.firstChild !== topSpacer) {
+          taskList.insertBefore(topSpacer, taskList.firstChild);
         }
-        anchor = card;
-      });
 
-      for (const [id, el] of cardElements) {
-        if (!seen.has(id)) {
-          el.remove();
-          cardElements.delete(id);
+        const seen = new Set();
+        let anchor = topSpacer;
+
+        for (let i = startIndex; i < endIndex; i++) {
+          const task = filtered[i];
+          seen.add(task.id);
+          let card = cardElements.get(task.id);
+          if (!card) {
+            card = createTaskCard(task);
+            cardElements.set(task.id, card);
+          } else if (card._task !== task) {
+            patchTaskCard(card, task);
+          }
+
+          const desiredNext = anchor.nextSibling;
+          if (desiredNext !== card) {
+            taskList.insertBefore(card, desiredNext);
+          }
+          anchor = card;
+        }
+
+        const desiredAfterAnchor = anchor.nextSibling;
+        if (desiredAfterAnchor !== bottomSpacer) {
+          taskList.insertBefore(bottomSpacer, desiredAfterAnchor);
+        }
+
+        for (const [id, el] of cardElements) {
+          if (!seen.has(id)) {
+            el.remove();
+            cardElements.delete(id);
+          }
+        }
+
+        topSpacer.style.height = (rowStride ? startIndex * rowStride : 0) + 'px';
+        bottomSpacer.style.height = (rowStride ? (filtered.length - endIndex) * rowStride : 0) + 'px';
+
+        virtualState.filtered = filtered;
+        virtualState.startIndex = startIndex;
+        virtualState.endIndex = endIndex;
+      }
+
+      applyWindow();
+
+      if (!rowStride) {
+        const measured = measureRowStride();
+        if (measured) {
+          rowStride = measured;
+          applyWindow();
         }
       }
     }
+
+    // Re-run the virtualization window whenever the list's own size
+    // changes -- not just a plain window resize, but also the sidebar
+    // going from collapsed (display:none, so nothing could be measured
+    // yet) to expanded, or the user dragging the sidebar wider/narrower.
+    new ResizeObserver(() => renderTasks()).observe(taskList);
+
+    // Mounting/unmounting rows as the list scrolls is what makes the
+    // scrollbar usable at all with only a window's worth of real DOM
+    // nodes; rAF-throttled so a fast scroll gesture doesn't queue up more
+    // reconciliation work than the browser can paint.
+    let virtualScrollScheduled = false;
+    taskList.addEventListener('scroll', () => {
+      if (virtualScrollScheduled) return;
+      virtualScrollScheduled = true;
+      requestAnimationFrame(() => {
+        virtualScrollScheduled = false;
+        renderTasks();
+      });
+    }, { passive: true });
 
     window.refreshTasks = async function(force = false) {
       const activeEl = document.activeElement;
