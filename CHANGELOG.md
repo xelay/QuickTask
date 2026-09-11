@@ -17,6 +17,10 @@ Targeting 1.1.0.
 - Interactive hotkey recording in Settings: click "Record..." and press a
   key combination, with validation and a "Disable" option to turn the
   global hotkey off entirely.
+- Single-instance guard: launching QuickTask while it's already running no
+  longer starts a second copy (which would double up the file watcher and
+  fight over the global hotkey) -- it now just brings the existing window
+  forward.
 
 ### Changed
 

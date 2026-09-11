@@ -97,6 +97,65 @@ CURRENT_WINDOW: Optional[webview.Window] = None
 SCREEN_WIDTH: int = 1920
 SCREEN_HEIGHT: int = 1080
 
+# --- Single-instance guard (Windows) ---------------------------------------
+# QuickTask is a small always-on-top sidebar that watches a tasks folder and
+# registers a global hotkey. Running a second copy would start a second
+# watcher on the same folder and fight over the same hotkey combo instead of
+# doing anything useful, so we detect an existing instance via a named Win32
+# mutex and, if found, just bring that instance forward instead of starting
+# a duplicate.
+_SINGLE_INSTANCE_MUTEX_NAME = "QuickTask_SingleInstance_9f3d2b7c-9e2a-4b7a-8e2b-6d1a7a2f5c31"
+_single_instance_mutex = None  # kept alive for the process lifetime; GC'ing/closing it releases the lock
+
+
+def acquire_single_instance_lock() -> bool:
+    """Return True if this is the only running instance (and hold the lock).
+
+    Uses a named kernel mutex: CreateMutexW returns a handle whether or not
+    the name already existed, but GetLastError() tells us which case we're
+    in. The handle is stashed in a module global (not just left as a local)
+    so the lock is held for as long as this process is alive -- closing it
+    or letting it get garbage-collected would release the name and defeat
+    the whole point.
+
+    No-op (always returns True) on non-Windows platforms: multi-instance
+    isn't something we currently guard against there.
+    """
+    global _single_instance_mutex
+
+    if sys.platform != "win32":
+        return True
+
+    ERROR_ALREADY_EXISTS = 183
+    handle = ctypes.windll.kernel32.CreateMutexW(None, False, _SINGLE_INSTANCE_MUTEX_NAME)
+    if not handle:
+        # Creating the mutex itself failed (very unlikely) -- fail open
+        # rather than blocking the user from starting the app at all.
+        return True
+
+    _single_instance_mutex = handle
+    already_running = ctypes.GetLastError() == ERROR_ALREADY_EXISTS
+    return not already_running
+
+
+def focus_existing_instance():
+    """Best-effort: bring the already-running instance's window to the front.
+
+    QuickTask's window is created with a fixed title ("QuickTask" -- see
+    webview.create_window() in main()), so FindWindowW can locate it even
+    though the window is frameless and has no visible caption.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "QuickTask")
+        if hwnd:
+            SW_SHOWNA = 8  # show without activating layout/z-order changes, then explicitly focus below
+            ctypes.windll.user32.ShowWindow(hwnd, SW_SHOWNA)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+    except Exception as e:
+        print(f"Error focusing existing instance: {e}", file=sys.stderr)
+
 
 def get_logical_screen_size() -> "tuple[int, int]":
     """
@@ -615,6 +674,11 @@ class QuickTaskAPI:
 
 def main():
     global CURRENT_WINDOW, SCREEN_WIDTH, SCREEN_HEIGHT
+
+    if not acquire_single_instance_lock():
+        print("QuickTask is already running -- focusing the existing window instead of starting a second copy.", file=sys.stderr)
+        focus_existing_instance()
+        return
 
     SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
 
