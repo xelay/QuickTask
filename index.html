@@ -1110,6 +1110,10 @@
     let currentLanguage = 'en';
     let draggedCard = null;
     let confirmResolver = null;
+    // id -> task-card DOM element, so re-rendering can reuse and patch
+    // existing nodes instead of tearing down and rebuilding the whole
+    // list on every refresh (see createTaskCard/patchTaskCard/renderTasks).
+    const cardElements = new Map();
 
     const collapsedTab = document.getElementById('collapsed-tab');
     const collapsedDragTab = document.getElementById('collapsed-drag-tab');
@@ -1493,7 +1497,12 @@
 
       if (settingLanguage) settingLanguage.value = currentLanguage;
       taskBodyPlaceholder.textContent = t('editor_body_placeholder');
-      renderTasks();
+      // Card contents carry translated tooltip strings baked in at creation
+      // time (task_drag_hint, task_urgent_on/off, etc.), not data-i18n
+      // attributes -- a language switch needs every card rebuilt to pick
+      // those up. This is the one case that still pays a full rebuild; it
+      // only happens on an explicit settings change, not on every refresh.
+      renderTasks({ forceRebuild: true });
     }
 
     function applyTheme(theme) {
@@ -1921,9 +1930,243 @@
       await window.pywebview.api.reorder_task(movedCard.dataset.id, beforeId, afterId);
     }
 
-    function renderTasks() {
-      taskList.innerHTML = '';
+    // Builds one task-card DOM node the first time a task is seen. Event
+    // handlers read the task's live data from card._task rather than
+    // closing over the `task` parameter, because the card itself is a
+    // long-lived node that gets reused across renders (see patchTaskCard)
+    // -- a closure over `task` would keep pointing at stale data (e.g. an
+    // old filename) after the very next refresh replaces currentTasks.
+    function createTaskCard(task) {
+      const card = document.createElement('div');
+      card.className = `task-card ${task.done ? 'done' : ''}`;
+      card.dataset.id = task.id;
+      card.setAttribute('draggable', 'false');
+      card._task = task;
 
+      const dragGrip = document.createElement('div');
+      dragGrip.className = 'task-drag-grip';
+      dragGrip.title = t('task_drag_hint');
+      dragGrip.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="8" cy="6" r="1.5" fill="currentColor"></circle>
+          <circle cx="8" cy="12" r="1.5" fill="currentColor"></circle>
+          <circle cx="8" cy="18" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="6" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="12" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="18" r="1.5" fill="currentColor"></circle>
+        </svg>
+      `;
+
+      dragGrip.addEventListener('mousedown', () => {
+        card.setAttribute('draggable', 'true');
+      });
+      dragGrip.addEventListener('mouseup', () => {
+        card.setAttribute('draggable', 'false');
+      });
+
+      card.addEventListener('dragstart', (e) => {
+        draggedCard = card;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card._task.id);
+      });
+
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        card.setAttribute('draggable', 'false');
+        document.querySelectorAll('.task-card').forEach(c => c.classList.remove('drag-over'));
+        draggedCard = null;
+        persistCurrentOrder(card);
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedCard && draggedCard !== card) {
+          const rect = card.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          if (e.clientY < midpoint) {
+            taskList.insertBefore(draggedCard, card);
+          } else {
+            taskList.insertBefore(draggedCard, card.nextSibling);
+          }
+        }
+      });
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'task-checkbox';
+      checkbox.checked = task.done;
+      checkbox.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const current = card._task;
+        await window.pywebview.api.update_task_status(current.id, checkbox.checked, null, null);
+        current.done = checkbox.checked;
+        card.classList.toggle('done', current.done);
+        // Cheap now that renderTasks() only patches/moves what actually
+        // changed -- always re-run it so a filter that should hide this
+        // task (e.g. "Active" once it's done) picks that up immediately,
+        // instead of only doing so conditionally as before.
+        renderTasks();
+      });
+      card._checkbox = checkbox;
+
+      const flagBtn = document.createElement('button');
+      flagBtn.className = `btn-flag ${task.urgent ? 'active' : ''}`;
+      flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
+      flagBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="${task.urgent ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+          <line x1="4" y1="22" x2="4" y2="15"></line>
+        </svg>
+      `;
+      flagBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const current = card._task;
+        const targetUrgent = !current.urgent;
+        await window.pywebview.api.update_task_status(current.id, null, null, targetUrgent);
+        current.urgent = targetUrgent;
+        flagBtn.classList.toggle('active', current.urgent);
+        flagBtn.querySelector('svg').setAttribute('fill', current.urgent ? 'currentColor' : 'none');
+        flagBtn.title = current.urgent ? t('task_urgent_on') : t('task_urgent_off');
+      });
+      card._flagBtn = flagBtn;
+
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.className = 'task-title-input';
+      titleInput.value = task.title;
+
+      async function commitTitleChange() {
+        const current = card._task;
+        const val = titleInput.value.trim();
+        if (val && val !== current.title) {
+          const newId = await window.pywebview.api.update_task_title(current.id, val);
+          if (newId) {
+            const oldId = current.id;
+            current.id = newId;
+            current.title = val;
+            card.dataset.id = newId;
+            // The card is keyed by task id in cardElements -- re-key it so
+            // the next render still finds (and patches, not recreates)
+            // this same node under its new id.
+            if (cardElements.get(oldId) === card) {
+              cardElements.delete(oldId);
+              cardElements.set(newId, card);
+            }
+          }
+        } else if (!val) {
+          titleInput.value = current.title;
+        }
+      }
+
+      titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          titleInput.blur();
+        }
+      });
+
+      titleInput.addEventListener('blur', () => {
+        commitTitleChange();
+      });
+
+      titleInput.addEventListener('click', (e) => e.stopPropagation());
+      card._titleInput = titleInput;
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'task-actions';
+
+      const editBodyBtn = document.createElement('button');
+      editBodyBtn.className = 'btn-action btn-edit-desc';
+      editBodyBtn.title = t('task_edit_desc');
+      editBodyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
+      editBodyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openBodyEditor(card._task);
+      });
+
+      const archiveBtn = document.createElement('button');
+      archiveBtn.className = 'btn-action';
+      archiveBtn.title = task.archived ? t('task_restore') : t('task_archive');
+      archiveBtn.innerHTML = task.archived
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
+
+      archiveBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const current = card._task;
+        const targetArchived = !current.archived;
+        await window.pywebview.api.update_task_status(current.id, null, targetArchived, null);
+        current.archived = targetArchived;
+        renderTasks();
+      });
+      card._archiveBtn = archiveBtn;
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-action btn-delete';
+      deleteBtn.title = t('task_delete_forever');
+      deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+      deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const current = card._task;
+        const confirmed = await showCustomConfirm(t('confirm_delete_task_message', {title: current.title}), t('confirm_delete_task_title'), t('confirm_delete_task_button'));
+        if (confirmed) {
+          await window.pywebview.api.delete_task(current.id);
+          currentTasks = currentTasks.filter(t => t.id !== current.id);
+          renderTasks();
+        }
+      });
+
+      actionsDiv.appendChild(editBodyBtn);
+      actionsDiv.appendChild(archiveBtn);
+      actionsDiv.appendChild(deleteBtn);
+
+      card.appendChild(dragGrip);
+      card.appendChild(checkbox);
+      card.appendChild(flagBtn);
+      card.appendChild(titleInput);
+      card.appendChild(actionsDiv);
+      return card;
+    }
+
+    // Updates an existing card in place for a task whose data may have
+    // changed (a fresh get_tasks() always hands back brand new plain
+    // objects, so this runs whenever a still-visible task's object
+    // reference changed -- see renderTasks()). Never touches the focused
+    // input's own value, so a background refresh can't clobber what's
+    // being typed (belt and suspenders -- refreshTasks() already skips
+    // entirely while the title/search inputs are focused).
+    function patchTaskCard(card, task) {
+      card._task = task;
+      card.dataset.id = task.id;
+      card.classList.toggle('done', task.done);
+      card._checkbox.checked = task.done;
+
+      const flagBtn = card._flagBtn;
+      flagBtn.classList.toggle('active', task.urgent);
+      const flagSvg = flagBtn.querySelector('svg');
+      if (flagSvg) flagSvg.setAttribute('fill', task.urgent ? 'currentColor' : 'none');
+      flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
+
+      const archiveBtn = card._archiveBtn;
+      archiveBtn.title = task.archived ? t('task_restore') : t('task_archive');
+      archiveBtn.innerHTML = task.archived
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
+
+      if (document.activeElement !== card._titleInput) {
+        card._titleInput.value = task.title;
+      }
+    }
+
+    // Reconciles the visible task list against currentTasks instead of
+    // tearing the whole list down and rebuilding it: existing cards are
+    // reused and patched in place, only genuinely new/removed tasks create
+    // or remove a DOM node, and a card only moves if its position actually
+    // changed. options.forceRebuild discards every existing card first --
+    // used only when something baked into card markup at creation time
+    // (translated tooltip strings) needs to change for every card at once.
+    function renderTasks(options = {}) {
       const filtered = currentTasks.filter(task => {
         if (currentFilter === 'active' && (task.done || task.archived)) return false;
         if (currentFilter === 'done' && (!task.done || task.archived)) return false;
@@ -1938,7 +2181,14 @@
         return true;
       });
 
+      if (options.forceRebuild) {
+        for (const el of cardElements.values()) el.remove();
+        cardElements.clear();
+      }
+
       if (filtered.length === 0) {
+        for (const el of cardElements.values()) el.remove();
+        cardElements.clear();
         taskList.innerHTML = `
           <div class="empty-state">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1952,176 +2202,36 @@
         return;
       }
 
+      if (taskList.querySelector('.empty-state')) {
+        taskList.innerHTML = '';
+      }
+
+      const seen = new Set();
+      let anchor = null;
+
       filtered.forEach(task => {
-        const card = document.createElement('div');
-        card.className = `task-card ${task.done ? 'done' : ''}`;
-        card.dataset.id = task.id;
-        card.setAttribute('draggable', 'false');
-
-        const dragGrip = document.createElement('div');
-        dragGrip.className = 'task-drag-grip';
-        dragGrip.title = t('task_drag_hint');
-        dragGrip.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <circle cx="8" cy="6" r="1.5" fill="currentColor"></circle>
-            <circle cx="8" cy="12" r="1.5" fill="currentColor"></circle>
-            <circle cx="8" cy="18" r="1.5" fill="currentColor"></circle>
-            <circle cx="16" cy="6" r="1.5" fill="currentColor"></circle>
-            <circle cx="16" cy="12" r="1.5" fill="currentColor"></circle>
-            <circle cx="16" cy="18" r="1.5" fill="currentColor"></circle>
-          </svg>
-        `;
-
-        dragGrip.addEventListener('mousedown', () => {
-          card.setAttribute('draggable', 'true');
-        });
-        dragGrip.addEventListener('mouseup', () => {
-          card.setAttribute('draggable', 'false');
-        });
-
-        card.addEventListener('dragstart', (e) => {
-          draggedCard = card;
-          card.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', task.id);
-        });
-
-        card.addEventListener('dragend', () => {
-          card.classList.remove('dragging');
-          card.setAttribute('draggable', 'false');
-          document.querySelectorAll('.task-card').forEach(c => c.classList.remove('drag-over'));
-          draggedCard = null;
-          persistCurrentOrder(card);
-        });
-
-        card.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          if (draggedCard && draggedCard !== card) {
-            const rect = card.getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            if (e.clientY < midpoint) {
-              taskList.insertBefore(draggedCard, card);
-            } else {
-              taskList.insertBefore(draggedCard, card.nextSibling);
-            }
-          }
-        });
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'task-checkbox';
-        checkbox.checked = task.done;
-        checkbox.addEventListener('change', async (e) => {
-          e.stopPropagation();
-          await window.pywebview.api.update_task_status(task.id, checkbox.checked, null, null);
-          task.done = checkbox.checked;
-          card.classList.toggle('done', task.done);
-          if (currentFilter !== 'all') renderTasks();
-        });
-
-        const flagBtn = document.createElement('button');
-        flagBtn.className = `btn-flag ${task.urgent ? 'active' : ''}`;
-        flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
-        flagBtn.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="${task.urgent ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-            <line x1="4" y1="22" x2="4" y2="15"></line>
-          </svg>
-        `;
-        flagBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const targetUrgent = !task.urgent;
-          await window.pywebview.api.update_task_status(task.id, null, null, targetUrgent);
-          task.urgent = targetUrgent;
-          flagBtn.classList.toggle('active', task.urgent);
-          flagBtn.querySelector('svg').setAttribute('fill', task.urgent ? 'currentColor' : 'none');
-          flagBtn.title = task.urgent ? t('task_urgent_on') : t('task_urgent_off');
-        });
-
-        const titleInput = document.createElement('input');
-        titleInput.type = 'text';
-        titleInput.className = 'task-title-input';
-        titleInput.value = task.title;
-
-        async function commitTitleChange() {
-          const val = titleInput.value.trim();
-          if (val && val !== task.title) {
-            const newId = await window.pywebview.api.update_task_title(task.id, val);
-            if (newId) {
-              task.id = newId;
-              task.title = val;
-              card.dataset.id = newId;
-            }
-          } else if (!val) {
-            titleInput.value = task.title;
-          }
+        seen.add(task.id);
+        let card = cardElements.get(task.id);
+        if (!card) {
+          card = createTaskCard(task);
+          cardElements.set(task.id, card);
+        } else if (card._task !== task) {
+          patchTaskCard(card, task);
         }
 
-        titleInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            titleInput.blur();
-          }
-        });
-
-        titleInput.addEventListener('blur', () => {
-          commitTitleChange();
-        });
-
-        titleInput.addEventListener('click', (e) => e.stopPropagation());
-
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'task-actions';
-
-        const editBodyBtn = document.createElement('button');
-        editBodyBtn.className = 'btn-action btn-edit-desc';
-        editBodyBtn.title = t('task_edit_desc');
-        editBodyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
-        editBodyBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openBodyEditor(task);
-        });
-
-        const archiveBtn = document.createElement('button');
-        archiveBtn.className = 'btn-action';
-        archiveBtn.title = task.archived ? t('task_restore') : t('task_archive');
-        archiveBtn.innerHTML = task.archived
-          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
-          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
-
-        archiveBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const targetArchived = !task.archived;
-          await window.pywebview.api.update_task_status(task.id, null, targetArchived, null);
-          task.archived = targetArchived;
-          renderTasks();
-        });
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-action btn-delete';
-        deleteBtn.title = t('task_delete_forever');
-        deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-        deleteBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const confirmed = await showCustomConfirm(t('confirm_delete_task_message', {title: task.title}), t('confirm_delete_task_title'), t('confirm_delete_task_button'));
-          if (confirmed) {
-            await window.pywebview.api.delete_task(task.id);
-            currentTasks = currentTasks.filter(t => t.id !== task.id);
-            renderTasks();
-          }
-        });
-
-        actionsDiv.appendChild(editBodyBtn);
-        actionsDiv.appendChild(archiveBtn);
-        actionsDiv.appendChild(deleteBtn);
-
-        card.appendChild(dragGrip);
-        card.appendChild(checkbox);
-        card.appendChild(flagBtn);
-        card.appendChild(titleInput);
-        card.appendChild(actionsDiv);
-        taskList.appendChild(card);
+        const desiredNext = anchor ? anchor.nextSibling : taskList.firstChild;
+        if (desiredNext !== card) {
+          taskList.insertBefore(card, desiredNext);
+        }
+        anchor = card;
       });
+
+      for (const [id, el] of cardElements) {
+        if (!seen.has(id)) {
+          el.remove();
+          cardElements.delete(id);
+        }
+      }
     }
 
     window.refreshTasks = async function(force = false) {
