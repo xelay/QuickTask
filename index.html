@@ -1907,14 +1907,18 @@
       }
     });
 
-    async function persistCurrentOrder() {
-      const order = [];
-      document.querySelectorAll('.task-card').forEach(card => {
-        if (card.dataset.id) order.push(card.dataset.id);
-      });
-      if (window.pywebview && order.length > 0) {
-        await window.pywebview.api.save_tasks_order(order);
-      }
+    async function persistCurrentOrder(movedCard) {
+      // Only the moved card's new position is sent -- its immediate
+      // neighbours' ids -- instead of the whole visible list. The backend
+      // assigns the moved task a single new sort key between those two
+      // neighbours and writes exactly that one file, however many tasks
+      // exist (see QuickTaskAPI.reorder_task / TaskStore.reorder_task).
+      if (!window.pywebview || !movedCard || !movedCard.dataset.id) return;
+      const prev = movedCard.previousElementSibling;
+      const next = movedCard.nextElementSibling;
+      const beforeId = (prev && prev.dataset.id) ? prev.dataset.id : null;
+      const afterId = (next && next.dataset.id) ? next.dataset.id : null;
+      await window.pywebview.api.reorder_task(movedCard.dataset.id, beforeId, afterId);
     }
 
     function renderTasks() {
@@ -1987,7 +1991,7 @@
           card.setAttribute('draggable', 'false');
           document.querySelectorAll('.task-card').forEach(c => c.classList.remove('drag-over'));
           draggedCard = null;
-          persistCurrentOrder();
+          persistCurrentOrder(card);
         });
 
         card.addEventListener('dragover', (e) => {
