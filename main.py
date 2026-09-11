@@ -45,6 +45,31 @@ DEFAULT_CONFIG = {
 
 SUPPORTED_LANGUAGES = ("en", "ru", "zh")
 
+# Modifier tokens recognized by the `keyboard` library (see
+# keyboard._canonical_names -- "win" is aliased to "windows" there).
+HOTKEY_MODIFIER_NAMES = {"ctrl", "alt", "shift", "win"}
+
+
+def validate_hotkey_combo(combo: str) -> Optional[str]:
+    """Return an error code for an invalid hotkey combo, or None if OK.
+
+    Requires at least one modifier (ctrl/alt/shift/win) plus exactly one
+    non-modifier key, with no repeated parts. Error codes are mapped to
+    localized messages on the JS side.
+    """
+    parts = [p.strip().lower() for p in combo.split("+") if p.strip()]
+    if not parts:
+        return "empty"
+    if len(set(parts)) != len(parts):
+        return "duplicate_key"
+    modifiers = [p for p in parts if p in HOTKEY_MODIFIER_NAMES]
+    non_modifiers = [p for p in parts if p not in HOTKEY_MODIFIER_NAMES]
+    if not modifiers:
+        return "no_modifier"
+    if len(non_modifiers) != 1:
+        return "needs_one_key"
+    return None
+
 # Bounds for interactively resizing the expanded sidebar by dragging its
 # left edge (QuickTaskAPI.resize_sidebar). Intentionally not persisted to
 # config.json -- resets to sidebar_width on the next launch, but is kept
@@ -193,6 +218,10 @@ class QuickTaskAPI:
         self.index_file = self.tasks_dir / "index.json"
         self._ensure_index_file()
         self.observer: Optional[Observer] = None
+        # Combo string currently registered with the `keyboard` library, if
+        # any. Tracked separately from config["hotkey"] so register_hotkey()
+        # can cleanly unhook the previous combo before hooking a new one.
+        self.registered_hotkey: Optional[str] = None
 
     def _ensure_index_file(self):
         try:
@@ -257,10 +286,28 @@ class QuickTaskAPI:
         self.observer.daemon = True
         self.observer.start()
 
-    def register_hotkey(self):
-        hotkey_combo = self.config.get("hotkey", "ctrl+alt+t")
+    def register_hotkey(self) -> bool:
+        """(Re)register the global hotkey from the current config.
+
+        Safe to call repeatedly: any previously registered combo is
+        unhooked first. An empty/missing "hotkey" in config means the
+        global hotkey is intentionally disabled -- that is treated as
+        success. Returns False only when a non-empty combo failed to
+        register with the OS (e.g. reserved by another application).
+        """
         if not keyboard:
-            return
+            return False
+
+        if self.registered_hotkey:
+            try:
+                keyboard.remove_hotkey(self.registered_hotkey)
+            except (KeyError, ValueError):
+                pass
+            self.registered_hotkey = None
+
+        hotkey_combo = str(self.config.get("hotkey", "") or "").strip()
+        if not hotkey_combo:
+            return True
 
         def on_hotkey_pressed():
             if not CURRENT_WINDOW:
@@ -271,8 +318,45 @@ class QuickTaskAPI:
 
         try:
             keyboard.add_hotkey(hotkey_combo, on_hotkey_pressed)
+            self.registered_hotkey = hotkey_combo
+            return True
         except Exception as e:
             print(f"Failed to register global hotkey '{hotkey_combo}': {e}", file=sys.stderr)
+            return False
+
+    def set_hotkey(self, combo: str) -> Dict[str, Any]:
+        """Validate, apply and persist a new global hotkey from the UI.
+
+        Applies immediately (no restart needed): on success the new combo
+        is hooked right away and saved to config. On failure nothing is
+        saved and the previously working hotkey (if any) is re-hooked, so
+        the app is never left without the hotkey the user had before.
+        Pass an empty string to disable the global hotkey entirely.
+        """
+        combo = str(combo or "").strip().lower()
+
+        if not combo:
+            self.config["hotkey"] = ""
+            self.register_hotkey()
+            self.save_config()
+            return {"success": True, "hotkey": ""}
+
+        if not keyboard:
+            return {"success": False, "error": "keyboard_unavailable", "hotkey": self.config.get("hotkey", "")}
+
+        error = validate_hotkey_combo(combo)
+        if error:
+            return {"success": False, "error": error, "hotkey": self.config.get("hotkey", "")}
+
+        previous = self.config.get("hotkey", "")
+        self.config["hotkey"] = combo
+        if not self.register_hotkey():
+            self.config["hotkey"] = previous
+            self.register_hotkey()
+            return {"success": False, "error": "register_failed", "hotkey": previous}
+
+        self.save_config()
+        return {"success": True, "hotkey": combo}
 
     def notify_tasks_changed(self):
         if CURRENT_WINDOW:

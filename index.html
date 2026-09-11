@@ -781,6 +781,14 @@
       display: flex;
       gap: 6px;
     }
+    .settings-hint-error {
+      color: var(--danger);
+    }
+    .settings-input.hotkey-recording {
+      border-color: var(--accent);
+      color: var(--text-muted);
+      font-style: italic;
+    }
 
     .modal-footer {
       padding: 10px 14px;
@@ -1024,6 +1032,17 @@
         </div>
 
         <div class="settings-group">
+          <label class="settings-label" data-i18n="settings_hotkey_label">Global hotkey</label>
+          <div class="folder-picker-box">
+            <input type="text" id="setting-hotkey" class="settings-input" readonly data-i18n-placeholder="settings_hotkey_placeholder" placeholder="Not set">
+            <button id="btn-hotkey-record" class="btn-secondary" data-i18n="settings_hotkey_record">Record...</button>
+            <button id="btn-hotkey-clear" class="btn-secondary" data-i18n="settings_hotkey_clear">Disable</button>
+          </div>
+          <span class="settings-hint" data-i18n="settings_hotkey_hint">Shortcut that opens QuickTask from anywhere on your system. Click "Record..." and press a key combination, or "Disable" to turn the global hotkey off completely.</span>
+          <span id="setting-hotkey-error" class="settings-hint settings-hint-error" hidden></span>
+        </div>
+
+        <div class="settings-group">
           <label class="settings-label" data-i18n="settings_tasks_dir_label">Tasks storage folder (.md)</label>
           <div class="folder-picker-box">
             <input type="text" id="setting-tasks-dir" class="settings-input" readonly>
@@ -1133,6 +1152,11 @@
     const modalTopClose = document.getElementById('modal-top-close');
 
     const settingsModal = document.getElementById('settings-modal');
+    const settingHotkeyInput = document.getElementById('setting-hotkey');
+    const btnHotkeyRecord = document.getElementById('btn-hotkey-record');
+    const btnHotkeyClear = document.getElementById('btn-hotkey-clear');
+    const settingHotkeyError = document.getElementById('setting-hotkey-error');
+    let isRecordingHotkey = false;
     const settingTasksDir = document.getElementById('setting-tasks-dir');
     const settingMaxHeight = document.getElementById('setting-max-height');
     const settingLanguage = document.getElementById('setting-language');
@@ -1269,6 +1293,18 @@
         settings_max_height_label: "Sidebar height (pixels)",
         settings_max_height_placeholder: "Leave empty for full screen height",
         settings_max_height_hint: "If a fixed height is set (e.g. 700), the sidebar is centered vertically on the screen with equal top and bottom margins.",
+        settings_hotkey_label: "Global hotkey",
+        settings_hotkey_hint: "Shortcut that opens QuickTask from anywhere on your system. Click \"Record...\" and press a key combination, or \"Disable\" to turn the global hotkey off completely.",
+        settings_hotkey_record: "Record...",
+        settings_hotkey_cancel: "Press keys... (Esc to cancel)",
+        settings_hotkey_clear: "Disable",
+        settings_hotkey_placeholder: "Not set — hotkey disabled",
+        settings_hotkey_recording_placeholder: "Press a key combination...",
+        hotkey_error_no_modifier: "Add a modifier key (Ctrl, Alt, Shift or Win) to the combination.",
+        hotkey_error_needs_one_key: "Use exactly one non-modifier key together with the modifiers.",
+        hotkey_error_duplicate_key: "The same key was pressed twice — try again.",
+        hotkey_error_register_failed: "This combination is already used by Windows or another app. The previous hotkey was kept.",
+        hotkey_error_unavailable: "Global hotkeys aren't available on this system.",
         btn_apply: "Apply",
         btn_ok: "OK",
         confirm_default_title: "Confirmation",
@@ -1327,6 +1363,18 @@
         settings_max_height_label: "Высота сайдбара (пиксели)",
         settings_max_height_placeholder: "Оставьте пустым для полной высоты экрана",
         settings_max_height_hint: "Если задана фиксированная высота (например 700), сайдбар центрируется вертикально на экране с равными отступами сверху и снизу.",
+        settings_hotkey_label: "Глобальный хоткей",
+        settings_hotkey_hint: "Сочетание клавиш, которое открывает QuickTask из любого места в системе. Нажмите «Записать...» и введите комбинацию клавиш, либо «Отключить», чтобы полностью выключить глобальный хоткей.",
+        settings_hotkey_record: "Записать...",
+        settings_hotkey_cancel: "Нажмите клавиши... (Esc — отмена)",
+        settings_hotkey_clear: "Отключить",
+        settings_hotkey_placeholder: "Не задан — хоткей отключён",
+        settings_hotkey_recording_placeholder: "Нажмите комбинацию клавиш...",
+        hotkey_error_no_modifier: "Добавьте клавишу-модификатор (Ctrl, Alt, Shift или Win) в комбинацию.",
+        hotkey_error_needs_one_key: "Используйте ровно одну обычную клавишу вместе с модификаторами.",
+        hotkey_error_duplicate_key: "Одна и та же клавиша нажата дважды — попробуйте ещё раз.",
+        hotkey_error_register_failed: "Эта комбинация уже используется Windows или другим приложением. Предыдущий хоткей сохранён.",
+        hotkey_error_unavailable: "Глобальные хоткеи недоступны в этой системе.",
         btn_apply: "Применить",
         btn_ok: "ОК",
         confirm_default_title: "Подтверждение",
@@ -1385,6 +1433,18 @@
         settings_max_height_label: "侧边栏高度(像素)",
         settings_max_height_placeholder: "留空则使用整个屏幕高度",
         settings_max_height_hint: "如果设置了固定高度(例如 700),侧边栏会在屏幕上垂直居中,上下边距相等。",
+        settings_hotkey_label: "全局快捷键",
+        settings_hotkey_hint: "从系统任意位置打开 QuickTask 的快捷键。点击“录制...”并按下组合键，或点击“禁用”以完全关闭全局快捷键。",
+        settings_hotkey_record: "录制...",
+        settings_hotkey_cancel: "请按键...（Esc 取消）",
+        settings_hotkey_clear: "禁用",
+        settings_hotkey_placeholder: "未设置 — 快捷键已禁用",
+        settings_hotkey_recording_placeholder: "请按下组合键...",
+        hotkey_error_no_modifier: "请在组合键中加入一个修饰键（Ctrl、Alt、Shift 或 Win）。",
+        hotkey_error_needs_one_key: "除修饰键外，请只使用一个普通按键。",
+        hotkey_error_duplicate_key: "同一个按键被按了两次，请重试。",
+        hotkey_error_register_failed: "该组合键已被 Windows 或其他程序占用，已保留之前的快捷键。",
+        hotkey_error_unavailable: "此系统不支持全局快捷键。",
         btn_apply: "应用",
         btn_ok: "确定",
         confirm_default_title: "确认",
@@ -1476,6 +1536,10 @@
         settingMaxHeight.value = cfg.max_height || '';
         settingLanguage.value = cfg.language || 'en';
         settingExternalEditor.value = cfg.external_editor || '';
+        settingHotkeyInput.dataset.combo = cfg.hotkey || '';
+        settingHotkeyInput.value = cfg.hotkey ? formatHotkeyDisplay(cfg.hotkey) : '';
+        settingHotkeyError.hidden = true;
+        settingHotkeyError.textContent = '';
         settingsModal.classList.add('active');
       }
     });
@@ -1498,6 +1562,120 @@
       }
     });
 
+    function formatHotkeyDisplay(combo) {
+      if (!combo) return '';
+      return combo.split('+').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
+    }
+
+    const HOTKEY_MODIFIER_KEYS = new Set(['Control', 'Alt', 'Shift', 'Meta', 'OS', 'AltGraph']);
+    const HOTKEY_SPECIAL_KEY_MAP = {
+      ' ': 'space',
+      'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right',
+      'Enter': 'enter', 'Tab': 'tab', 'Backspace': 'backspace', 'Delete': 'delete',
+      'Insert': 'insert', 'Home': 'home', 'End': 'end',
+      'PageUp': 'page up', 'PageDown': 'page down',
+      'CapsLock': 'caps lock', 'ScrollLock': 'scroll lock', 'NumLock': 'num lock',
+      'PrintScreen': 'print screen', 'ContextMenu': 'menu'
+    };
+
+    function jsKeyToHotkeyToken(e) {
+      const key = e.key;
+      if (Object.prototype.hasOwnProperty.call(HOTKEY_SPECIAL_KEY_MAP, key)) {
+        return HOTKEY_SPECIAL_KEY_MAP[key];
+      }
+      return key.toLowerCase();
+    }
+
+    function hotkeyErrorMessage(code) {
+      const messages = {
+        empty: t('hotkey_error_no_modifier'),
+        no_modifier: t('hotkey_error_no_modifier'),
+        needs_one_key: t('hotkey_error_needs_one_key'),
+        duplicate_key: t('hotkey_error_duplicate_key'),
+        register_failed: t('hotkey_error_register_failed'),
+        keyboard_unavailable: t('hotkey_error_unavailable')
+      };
+      return messages[code] || t('hotkey_error_register_failed');
+    }
+
+    function applyHotkeyResult(result) {
+      settingHotkeyInput.dataset.combo = result.hotkey || '';
+      settingHotkeyInput.value = result.hotkey ? formatHotkeyDisplay(result.hotkey) : '';
+      if (result.success) {
+        settingHotkeyError.hidden = true;
+        settingHotkeyError.textContent = '';
+      } else {
+        settingHotkeyError.textContent = hotkeyErrorMessage(result.error);
+        settingHotkeyError.hidden = false;
+      }
+    }
+
+    function hotkeyRecordingHandler(e) {
+      if (!isRecordingHotkey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        cancelHotkeyRecording();
+        return;
+      }
+      if (HOTKEY_MODIFIER_KEYS.has(e.key)) {
+        return;
+      }
+      const mods = [];
+      if (e.ctrlKey) mods.push('ctrl');
+      if (e.altKey) mods.push('alt');
+      if (e.shiftKey) mods.push('shift');
+      if (e.metaKey) mods.push('win');
+      const combo = [...mods, jsKeyToHotkeyToken(e)].join('+');
+      finishHotkeyRecording(combo);
+    }
+
+    function startHotkeyRecording() {
+      isRecordingHotkey = true;
+      settingHotkeyError.hidden = true;
+      settingHotkeyInput.classList.add('hotkey-recording');
+      settingHotkeyInput.value = t('settings_hotkey_recording_placeholder');
+      btnHotkeyRecord.textContent = t('settings_hotkey_cancel');
+      document.addEventListener('keydown', hotkeyRecordingHandler, true);
+    }
+
+    function stopHotkeyRecording() {
+      isRecordingHotkey = false;
+      settingHotkeyInput.classList.remove('hotkey-recording');
+      btnHotkeyRecord.textContent = t('settings_hotkey_record');
+      document.removeEventListener('keydown', hotkeyRecordingHandler, true);
+    }
+
+    function cancelHotkeyRecording() {
+      stopHotkeyRecording();
+      const combo = settingHotkeyInput.dataset.combo || '';
+      settingHotkeyInput.value = combo ? formatHotkeyDisplay(combo) : '';
+    }
+
+    async function finishHotkeyRecording(combo) {
+      stopHotkeyRecording();
+      if (window.pywebview) {
+        const result = await window.pywebview.api.set_hotkey(combo);
+        applyHotkeyResult(result);
+      }
+    }
+
+    btnHotkeyRecord.addEventListener('click', () => {
+      if (isRecordingHotkey) {
+        cancelHotkeyRecording();
+      } else {
+        startHotkeyRecording();
+      }
+    });
+
+    btnHotkeyClear.addEventListener('click', async () => {
+      if (isRecordingHotkey) cancelHotkeyRecording();
+      if (window.pywebview) {
+        const result = await window.pywebview.api.set_hotkey('');
+        applyHotkeyResult(result);
+      }
+    });
+
     settingsBtnSave.addEventListener('click', async () => {
       if (window.pywebview) {
         await window.pywebview.api.save_settings({
@@ -1513,6 +1691,7 @@
     });
 
     function closeSettings() {
+      if (isRecordingHotkey) cancelHotkeyRecording();
       settingsModal.classList.remove('active');
     }
     settingsBtnCancel.addEventListener('click', closeSettings);
