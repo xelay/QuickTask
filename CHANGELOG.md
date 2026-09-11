@@ -19,8 +19,9 @@ Targeting 1.1.0.
   global hotkey off entirely.
 - Single-instance guard: launching QuickTask while it's already running no
   longer starts a second copy (which would double up the file watcher and
-  fight over the global hotkey) -- it now just brings the existing window
-  forward.
+  fight over the global hotkey) -- it now brings the existing window
+  forward and shows a native "QuickTask is already running" popup
+  (localized to the configured UI language) before exiting.
 
 ### Changed
 

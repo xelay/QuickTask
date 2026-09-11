@@ -108,6 +108,24 @@ _SINGLE_INSTANCE_MUTEX_NAME = "QuickTask_SingleInstance_9f3d2b7c-9e2a-4b7a-8e2b-
 _single_instance_mutex = None  # kept alive for the process lifetime; GC'ing/closing it releases the lock
 
 
+def _safe_stderr(message: str):
+    """print() to stderr without ever raising.
+
+    A --noconsole/--windowed PyInstaller build (see AGENTS.md's build
+    command) has no console, and depending on the PyInstaller version
+    sys.stderr can end up as None there -- a plain print(..., file=sys.stderr)
+    would then raise AttributeError. That would matter a lot right here:
+    unlike this file's other scattered error prints (rare edge cases), the
+    single-instance message below runs on every single duplicate launch, so
+    a crash here would surface as a visible "stopped working" dialog every
+    time someone double-clicks the app while it's already open.
+    """
+    try:
+        print(message, file=sys.stderr)
+    except Exception:
+        pass
+
+
 def acquire_single_instance_lock() -> bool:
     """Return True if this is the only running instance (and hold the lock).
 
@@ -154,7 +172,60 @@ def focus_existing_instance():
             ctypes.windll.user32.ShowWindow(hwnd, SW_SHOWNA)
             ctypes.windll.user32.SetForegroundWindow(hwnd)
     except Exception as e:
-        print(f"Error focusing existing instance: {e}", file=sys.stderr)
+        _safe_stderr(f"Error focusing existing instance: {e}")
+
+
+def _read_config_language() -> str:
+    """Best-effort read of the configured UI language, straight from disk.
+
+    Needed only for show_already_running_message(): that fires before
+    QuickTaskAPI (which normally owns config loading) is ever constructed
+    for this process, since we're about to exit without doing anything
+    else. Falls back to "en" -- same default as DEFAULT_CONFIG -- on any
+    problem (missing/corrupt config, unsupported value, etc.).
+    """
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        language = data.get("language")
+        if language in SUPPORTED_LANGUAGES:
+            return language
+    except Exception:
+        pass
+    return "en"
+
+
+def show_already_running_message():
+    """Native "already running" popup shown on a duplicate launch.
+
+    Uses MessageBoxW directly rather than anything webview-based: at this
+    point in main() no window/webview runtime has been created for this
+    (second, about-to-exit) process, so there's nothing to show it in.
+    MB_SETFOREGROUND + MB_TOPMOST keep it from getting lost behind the
+    existing instance's own always-on-top window, which
+    focus_existing_instance() just raised.
+    """
+    if sys.platform != "win32":
+        return
+
+    messages = {
+        "en": "QuickTask is already running.",
+        "ru": "QuickTask \u0443\u0436\u0435 \u0437\u0430\u043f\u0443\u0449\u0435\u043d.",
+        "zh": "QuickTask \u5df2\u7ecf\u5728\u8fd0\u884c\u3002",
+    }
+    message = messages.get(_read_config_language(), messages["en"])
+
+    MB_OK = 0x00000000
+    MB_ICONINFORMATION = 0x00000040
+    MB_TOPMOST = 0x00040000
+    MB_SETFOREGROUND = 0x00010000
+    try:
+        ctypes.windll.user32.MessageBoxW(
+            None, message, "QuickTask",
+            MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND
+        )
+    except Exception as e:
+        _safe_stderr(f"Error showing already-running message box: {e}")
 
 
 def get_logical_screen_size() -> "tuple[int, int]":
@@ -676,8 +747,9 @@ def main():
     global CURRENT_WINDOW, SCREEN_WIDTH, SCREEN_HEIGHT
 
     if not acquire_single_instance_lock():
-        print("QuickTask is already running -- focusing the existing window instead of starting a second copy.", file=sys.stderr)
+        _safe_stderr("QuickTask is already running -- focusing the existing window and showing a popup instead of starting a second copy.")
         focus_existing_instance()
+        show_already_running_message()
         return
 
     SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
