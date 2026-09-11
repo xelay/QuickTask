@@ -55,10 +55,12 @@ venv\Scripts\pip.exe install pyinstaller
 ### 2. Сборка приложения (рекомендуемый режим `--onedir`)
 Режим папки обеспечивает мгновенный холодный запуск без распаковки во временный каталог:
 ```cmd
-venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" main.py
+venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" --add-data "VERSION;." main.py
 ```
 
 > Флаг `--add-data "vendor;vendor"` обязателен: в `index.html` подключён редактор CodeMirror по относительному пути (`vendor/codemirror/...`). Без этого флага в собранном `.exe` не загрузится редактор описания задачи.
+>
+> Флаг `--add-data "VERSION;."` тоже обязателен: без файла `VERSION` рядом с исполняемым файлом приложение покажет в настройках версию `0.0.0`. При выпуске новой версии не забудьте обновить содержимое файла `VERSION` перед сборкой.
 
 - Готовый исполняемый файл и зависимости будут созданы в папке `dist\QuickTask\`.
 - Запуск: `dist\QuickTask\QuickTask.exe`.
@@ -66,7 +68,7 @@ venv\Scripts\pyinstaller.exe --noconsole --name "QuickTask" --add-data "index.ht
 ### 3. Сборка в единый файл (`--onefile`)
 Если требуется переносить программу одним файлом:
 ```cmd
-venv\Scripts\pyinstaller.exe --noconsole --onefile --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" main.py
+venv\Scripts\pyinstaller.exe --noconsole --onefile --name "QuickTask" --add-data "index.html;." --add-data "vendor;vendor" --add-data "VERSION;." main.py
 ```
 Файл будет создан по пути `dist\QuickTask.exe`.
 

@@ -44,6 +44,23 @@ DEFAULT_CONFIG = {
 
 SUPPORTED_LANGUAGES = ("en", "ru", "zh")
 
+
+def load_app_version() -> str:
+    """Read the app version from the VERSION file shipped next to this script.
+
+    Falls back to "0.0.0" if the file is missing or unreadable (e.g. a dev
+    checkout without the file, or a packaging step that forgot to include
+    it) so the UI always has something to show.
+    """
+    version_file = Path(__file__).resolve().parent / "VERSION"
+    try:
+        return version_file.read_text(encoding="utf-8").strip() or "0.0.0"
+    except Exception:
+        return "0.0.0"
+
+
+APP_VERSION = load_app_version()
+
 # Modifier tokens recognized by the `keyboard` library (see
 # keyboard._canonical_names -- "win" is aliased to "windows" there).
 HOTKEY_MODIFIER_NAMES = {"ctrl", "alt", "shift", "win"}
@@ -384,7 +401,10 @@ class QuickTaskAPI:
         return new_state
 
     def get_config(self) -> Dict[str, Any]:
-        return self.config
+        # app_version is intentionally not merged into self.config: it is
+        # not a user setting and must never be written to config.json by
+        # save_config().
+        return {**self.config, "app_version": APP_VERSION}
 
     def set_theme(self, theme_name: str) -> str:
         self.config["theme"] = "light" if theme_name == "light" else "dark"
