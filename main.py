@@ -96,6 +96,11 @@ MAX_SIDEBAR_WIDTH = 900
 CURRENT_WINDOW: Optional[webview.Window] = None
 SCREEN_WIDTH: int = 1920
 SCREEN_HEIGHT: int = 1080
+# Set once in main() right after QuickTaskAPI() is constructed. Lets the
+# display-change watcher below (which lives outside the class, in its own
+# background thread) call back into collapse()/expand() without needing a
+# handle passed through webview's own callback machinery.
+CURRENT_API: Optional["QuickTaskAPI"] = None
 
 # --- Single-instance guard (Windows) ---------------------------------------
 # QuickTask is a small always-on-top sidebar that watches a tasks folder and
@@ -308,6 +313,144 @@ def remove_taskbar_icon():
                 )
         except Exception as e:
             print(f"Error hiding taskbar icon: {e}", file=sys.stderr)
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+
+# --- Live re-snap on display/scale change ----------------------------------
+
+WM_DISPLAYCHANGE = 0x007E
+WM_SETTINGCHANGE = 0x001A
+WM_DESTROY_MSG = 0x0002
+
+# Keeps the ctypes callback alive for the life of the watcher thread -- if
+# this were only a local variable inside _worker() it could be garbage
+# collected while Windows still holds a pointer to it, crashing the process
+# on the next message dispatched to the watcher window.
+_DISPLAY_WATCHER_WNDPROC = None
+
+
+def _reposition_for_current_geometry():
+    """
+    Re-read the (possibly changed) logical screen size and re-apply it to
+    the window, preserving whatever state (expanded/collapsed) it is
+    currently in -- this is exactly what on_started() already does once at
+    startup, just re-triggerable at any point during the run.
+
+    Safe to call from a background thread: QuickTask already does this
+    today from the watchdog file-change callback (notify_tasks_changed) and
+    the global-hotkey callback (on_hotkey_pressed), both of which run on
+    their own background threads and already call into CURRENT_WINDOW /
+    QuickTaskAPI the same way.
+    """
+    global SCREEN_WIDTH, SCREEN_HEIGHT
+    if not CURRENT_WINDOW or not CURRENT_API:
+        return
+    try:
+        SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
+        if CURRENT_API.is_expanded:
+            CURRENT_API.expand()
+        else:
+            CURRENT_API.collapse(force=True)
+    except Exception as e:
+        print(f"Error re-positioning window after display change: {e}", file=sys.stderr)
+
+
+def start_display_change_watcher():
+    """
+    Re-snap the handle/sidebar to the screen edge live, without waiting for
+    the user to manually collapse/expand or restart the app.
+
+    Windows notifies top-level windows of resolution/scale changes via
+    WM_DISPLAYCHANGE (usually alongside WM_SETTINGCHANGE) -- this is
+    delivered to DPI-unaware *and* System-DPI-aware windows alike, unlike
+    WM_DPICHANGED, which only Per-Monitor-v2-aware windows receive (see
+    get_logical_screen_size()'s docstring for why this process deliberately
+    is not Per-Monitor-v2-aware -- that was the cause of a previous, worse
+    positioning bug). Confirmed empirically for this app's actual triggers:
+    changing the scale in Windows Settings, reconnecting over RDP at a
+    different scale, and plugging/unplugging a second monitor all reliably
+    fire WM_DISPLAYCHANGE.
+
+    Rather than subclassing pywebview's own WinForms/WebView2-hosted window
+    (risky: it would mean intercepting messages meant for a host we don't
+    control), this spins up a small, separate, invisible window in its own
+    background thread purely to listen for these two messages, then calls
+    back into the existing collapse()/expand() positioning code through
+    _reposition_for_current_geometry() -- an ordinary Python function call,
+    not a Windows message. No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return
+
+    def _worker():
+        global _DISPLAY_WATCHER_WNDPROC
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+
+            LRESULT = ctypes.c_ssize_t
+            WNDPROCTYPE = ctypes.WINFUNCTYPE(
+                LRESULT, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM
+            )
+
+            # Explicit argtypes/restype matter here: without them ctypes
+            # guesses a 32-bit int for pointer-sized values, which raises an
+            # OverflowError on messages that carry a 64-bit lparam (e.g.
+            # WM_SETTINGCHANGE's lparam is a pointer to a string).
+            user32.DefWindowProcW.argtypes = [wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM]
+            user32.DefWindowProcW.restype = LRESULT
+            user32.CreateWindowExW.restype = wintypes.HWND
+            user32.RegisterClassW.restype = wintypes.ATOM
+
+            def _wnd_proc(hwnd, msg, wparam, lparam):
+                if msg in (WM_DISPLAYCHANGE, WM_SETTINGCHANGE):
+                    _reposition_for_current_geometry()
+                elif msg == WM_DESTROY_MSG:
+                    user32.PostQuitMessage(0)
+                return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+            _DISPLAY_WATCHER_WNDPROC = WNDPROCTYPE(_wnd_proc)
+
+            class WNDCLASS(ctypes.Structure):
+                _fields_ = [
+                    ("style", ctypes.c_uint),
+                    ("lpfnWndProc", WNDPROCTYPE),
+                    ("cbClsExtra", ctypes.c_int),
+                    ("cbWndExtra", ctypes.c_int),
+                    ("hInstance", wintypes.HINSTANCE),
+                    ("hIcon", wintypes.HICON),
+                    ("hCursor", wintypes.HANDLE),
+                    ("hbrBackground", wintypes.HBRUSH),
+                    ("lpszMenuName", wintypes.LPCWSTR),
+                    ("lpszClassName", wintypes.LPCWSTR),
+                ]
+
+            hInstance = kernel32.GetModuleHandleW(None)
+            class_name = "QuickTaskDisplayWatcher"
+            wc = WNDCLASS()
+            wc.lpfnWndProc = _DISPLAY_WATCHER_WNDPROC
+            wc.hInstance = hInstance
+            wc.lpszClassName = class_name
+
+            if not user32.RegisterClassW(ctypes.byref(wc)):
+                print("Error registering display-watcher window class -- live re-snap on display/scale change is disabled for this run.", file=sys.stderr)
+                return
+
+            hwnd = user32.CreateWindowExW(
+                0, class_name, class_name, 0, 0, 0, 0, 0, None, None, hInstance, None
+            )
+            if not hwnd:
+                print("Error creating display-watcher window -- live re-snap on display/scale change is disabled for this run.", file=sys.stderr)
+                return
+
+            msg = wintypes.MSG()
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        except Exception as e:
+            print(f"Error in display-change watcher thread: {e}", file=sys.stderr)
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
@@ -744,7 +887,7 @@ class QuickTaskAPI:
 
 
 def main():
-    global CURRENT_WINDOW, SCREEN_WIDTH, SCREEN_HEIGHT
+    global CURRENT_WINDOW, CURRENT_API, SCREEN_WIDTH, SCREEN_HEIGHT
 
     if not acquire_single_instance_lock():
         _safe_stderr("QuickTask is already running -- focusing the existing window and showing a popup instead of starting a second copy.")
@@ -755,6 +898,7 @@ def main():
     SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
 
     api = QuickTaskAPI()
+    CURRENT_API = api
     html_path = Path(__file__).parent / "index.html"
     initial_y = api.config.get("window_y", 120)
     h_width = 36
@@ -798,6 +942,7 @@ def main():
             print(f"Error re-positioning window on startup: {e}", file=sys.stderr)
 
         remove_taskbar_icon()
+        start_display_change_watcher()
         api.start_watcher()
         api.register_hotkey()
 

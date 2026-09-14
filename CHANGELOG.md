@@ -8,6 +8,10 @@ listed under [Unreleased].
 
 ## [Unreleased]
 
+### Fixed
+
+- The collapsed handle / expanded sidebar no longer stays pinned to a stale screen edge after the display changes while the app is running (scale change in Windows Settings, reconnecting over RDP at a different scale, or plugging/unplugging a monitor) -- previously the window's position was only computed once at startup. It now re-snaps live via a `WM_DISPLAYCHANGE`/`WM_SETTINGCHANGE` listener.
+
 ## [1.2.0] - 2026-09-11
 
 ### Added
