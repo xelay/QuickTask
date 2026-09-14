@@ -331,12 +331,102 @@ WM_DESTROY_MSG = 0x0002
 _DISPLAY_WATCHER_WNDPROC = None
 
 
+def _get_live_logical_screen_size():
+    """
+    Logical-pixel monitor size for use *after* the window already exists --
+    NOT the same thing as get_logical_screen_size(), and the two are not
+    interchangeable.
+
+    get_logical_screen_size()'s raw GetSystemMetrics(SM_CXSCREEN/Y) call
+    only returns an already-DPI-divided ("logical") value the *one* time
+    it's called before any window/WebView2 host exists (see its docstring,
+    and main()'s single pre-create_window() call). Empirically (diagnostic
+    capture, 2026-09 -- see the DPI live-reposition doc in the project),
+    calling it again later -- once this process's WinForms/WebView2 host
+    has fully established itself as SYSTEM_DPI_AWARE, e.g. from this
+    live-refresh path -- returns RAW PHYSICAL pixels instead. pywebview's
+    move()/resize() always multiply whatever we pass by its own frozen
+    GetDpiForWindow(hwnd)/96 ratio to get physical pixels for the real
+    Win32 call. Feeding it an already-physical value here means that ratio
+    gets applied *twice*, pushing the window off the right/bottom edge --
+    this was the actual cause of the handle "getting lost" after a live
+    scale change.
+
+    Fix: read the monitor's physical rect via GetMonitorInfoW (documented
+    to always be raw physical pixels, regardless of the caller's own
+    DPI-awareness -- unlike GetSystemMetrics/GetDpiForMonitor, which are
+    not immune to it), then divide by that same frozen GetDpiForWindow/96
+    ratio ourselves. Whatever that ratio "means" about the real monitor
+    (on this app's actual RDP-heavy usage it often does not correspond to
+    the monitor's real DPI at all -- GetDpiForMonitor reported 96/100% in
+    every observed mode, while GetDpiForWindow stays frozen at whatever it
+    was on first launch), using the *same* ratio on both sides is what
+    makes our division and pywebview's later multiplication cancel out
+    correctly.
+
+    Falls back to get_logical_screen_size() (i.e. the last-known-good
+    SCREEN_WIDTH/HEIGHT) if anything here fails or looks implausible --
+    never worth risking flinging the window off-screen over a bad reading.
+    """
+    fallback = get_logical_screen_size()
+    if sys.platform != "win32":
+        return fallback
+    try:
+        user32 = ctypes.windll.user32
+
+        hwnd = user32.FindWindowW(None, "QuickTask")
+        if not hwnd:
+            return fallback
+
+        MONITOR_DEFAULTTOPRIMARY = 1
+
+        class RECT(ctypes.Structure):
+            _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                        ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint), ("rcMonitor", RECT),
+                        ("rcWork", RECT), ("dwFlags", ctypes.c_uint)]
+
+        user32.MonitorFromWindow.restype = wintypes.HMONITOR
+        user32.MonitorFromWindow.argtypes = [wintypes.HWND, ctypes.c_uint]
+        user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+
+        hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY)
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+            return fallback
+
+        physical_w = mi.rcMonitor.right - mi.rcMonitor.left
+        physical_h = mi.rcMonitor.bottom - mi.rcMonitor.top
+        window_dpi = user32.GetDpiForWindow(hwnd)
+        if physical_w <= 0 or physical_h <= 0 or window_dpi <= 0:
+            return fallback
+
+        logical_w = round(physical_w * 96 / window_dpi)
+        logical_h = round(physical_h * 96 / window_dpi)
+
+        # Sanity backstop: a failed/odd API call returning garbage should
+        # never be trusted enough to fling the window somewhere off in
+        # space -- fall back to the last-known-good value instead.
+        if not (100 <= logical_w <= 20000 and 100 <= logical_h <= 20000):
+            return fallback
+
+        return logical_w, logical_h
+    except Exception:
+        return fallback
+
+
 def _reposition_for_current_geometry():
     """
     Re-read the (possibly changed) logical screen size and re-apply it to
     the window, preserving whatever state (expanded/collapsed) it is
-    currently in -- this is exactly what on_started() already does once at
-    startup, just re-triggerable at any point during the run.
+    currently in -- this is the same collapse()/expand() code on_started()
+    already uses once at startup, just re-triggerable at any point during
+    the run. Uses _get_live_logical_screen_size(), NOT
+    get_logical_screen_size() -- see that function's docstring for why
+    they're not interchangeable once the window already exists.
 
     Safe to call from a background thread: QuickTask already does this
     today from the watchdog file-change callback (notify_tasks_changed) and
@@ -348,7 +438,7 @@ def _reposition_for_current_geometry():
     if not CURRENT_WINDOW or not CURRENT_API:
         return
     try:
-        SCREEN_WIDTH, SCREEN_HEIGHT = get_logical_screen_size()
+        SCREEN_WIDTH, SCREEN_HEIGHT = _get_live_logical_screen_size()
         if CURRENT_API.is_expanded:
             CURRENT_API.expand()
         else:
